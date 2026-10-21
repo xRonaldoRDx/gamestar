@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { initDatabase } from './src/services/database';
+import { colors } from './src/theme/tokens';
+import HomeScreen from './src/screens/HomeScreen';
+import SearchScreen from './src/screens/SearchScreen';
+import GameFormScreen from './src/screens/GameFormScreen';
+import GameDetailsScreen from './src/screens/GameDetailsScreen';
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
@@ -20,74 +31,79 @@ export default function App() {
     setup();
   }, []);
 
-  return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      <Text style={styles.title}>Gamestar</Text>
-      <Text style={styles.subtitle}>Game Backlog & Review Tracker</Text>
-
-      <View style={styles.statusBox}>
-        {!dbReady && !dbError && (
-          <>
-            <ActivityIndicator size="small" color="#6366F1" />
-            <Text style={styles.statusText}>Inicializando SQLite...</Text>
-          </>
-        )}
-
-        {dbReady && (
-          <Text style={styles.successText}>
-            ✓ Banco SQLite e tabela Backlog prontos!
-          </Text>
-        )}
-
-        {dbError && (
-          <Text style={styles.errorText}>Erro: {dbError}</Text>
-        )}
+  if (dbError) {
+    return (
+      <View style={styles.centerContainer}>
+        <StatusBar style="light" />
+        <Text style={styles.errorText}>Erro no Banco: {dbError}</Text>
       </View>
-    </View>
+    );
+  }
+
+  if (!dbReady) {
+    return (
+      <View style={styles.centerContainer}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Inicializando banco local...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <StatusBar style="light" />
+        <Stack.Navigator
+          initialRouteName="Home"
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.surface },
+            headerTintColor: colors.text,
+            headerTitleStyle: { fontWeight: '700' },
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        >
+          <Stack.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{ title: 'Gamestar Backlog' }}
+          />
+          <Stack.Screen
+            name="Search"
+            component={SearchScreen}
+            options={{ title: 'Buscar na RAWG' }}
+          />
+          <Stack.Screen
+            name="GameForm"
+            component={GameFormScreen}
+            options={{ title: 'Avaliar Jogo' }}
+          />
+          <Stack.Screen
+            name="GameDetails"
+            component={GameDetailsScreen}
+            options={{ title: 'Detalhes do Jogo' }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  centerContainer: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    gap: 12,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    marginBottom: 4,
-  },
-  subtitle: {
+  loadingText: {
+    color: colors.textSecondary,
     fontSize: 14,
-    color: '#94A3B8',
-    marginBottom: 32,
-  },
-  statusBox: {
-    backgroundColor: '#1E293B',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#334155',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusText: {
-    color: '#CBD5E1',
-    fontSize: 14,
-  },
-  successText: {
-    color: '#34D399',
-    fontSize: 14,
-    fontWeight: '600',
   },
   errorText: {
-    color: '#F87171',
+    color: colors.danger,
     fontSize: 14,
     fontWeight: '600',
   },
