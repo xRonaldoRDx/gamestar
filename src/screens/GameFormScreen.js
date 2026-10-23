@@ -1,33 +1,75 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing } from '../theme/tokens';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import AppText from '../components/AppText';
+import { useTheme } from '../theme/ThemeProvider';
 
 export default function GameFormScreen({ route }) {
+  const { colors, spacing, radius } = useTheme();
   const prefillGame = route?.params?.prefillGame;
   const existingGame = route?.params?.game;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Formulário de Avaliação</Text>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, padding: spacing.lg },
+      ]}
+    >
+      <AppText variant="title" style={{ marginBottom: spacing.md }}>
+        Gamestar • Avaliar Jogo
+      </AppText>
 
-      {prefillGame && (
-        <View style={styles.prefillBox}>
-          <Text style={styles.prefillLabel}>Jogo selecionado na RAWG:</Text>
-          <Text style={styles.prefillTitle}>{prefillGame.title}</Text>
-          <Text style={styles.prefillId}>RAWG ID: {prefillGame.rawg_id}</Text>
+      {prefillGame ? (
+        <View
+          style={[
+            styles.prefillBox,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderRadius: radius.md,
+              padding: spacing.md,
+              marginBottom: spacing.md,
+            },
+          ]}
+        >
+          <AppText variant="caption" tone="muted">
+            Jogo selecionado na RAWG:
+          </AppText>
+          <AppText variant="subtitle" style={styles.centerText}>
+            {prefillGame.title}
+          </AppText>
+          <AppText variant="caption" tone="warning">
+            RAWG ID: {prefillGame.rawg_id}
+          </AppText>
         </View>
-      )}
+      ) : null}
 
-      {existingGame && (
-        <View style={styles.prefillBox}>
-          <Text style={styles.prefillLabel}>Editando jogo:</Text>
-          <Text style={styles.prefillTitle}>{existingGame.title}</Text>
+      {existingGame ? (
+        <View
+          style={[
+            styles.prefillBox,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderRadius: radius.md,
+              padding: spacing.md,
+              marginBottom: spacing.md,
+            },
+          ]}
+        >
+          <AppText variant="caption" tone="muted">
+            Editando jogo:
+          </AppText>
+          <AppText variant="subtitle" style={styles.centerText}>
+            {existingGame.title}
+          </AppText>
         </View>
-      )}
+      ) : null}
 
-      <Text style={styles.description}>
+      <AppText variant="body" tone="muted" style={styles.centerText}>
         Esta tela será implementada na Fase 4 para adicionar, editar e excluir
-        avaliações no SQLite.
-      </Text>
+        avaliações usando queries parametrizadas no SQLite.
+      </AppText>
     </View>
   );
 }
@@ -35,46 +77,16 @@ export default function GameFormScreen({ route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    padding: spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
   prefillBox: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
     width: '100%',
     alignItems: 'center',
     gap: 4,
   },
-  prefillLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  prefillTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  prefillId: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.accent,
-  },
-  description: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  centerText: {
     textAlign: 'center',
   },
 });

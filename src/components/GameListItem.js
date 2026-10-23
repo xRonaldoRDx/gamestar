@@ -1,11 +1,33 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadow, spacing, statusColors } from '../theme/tokens';
+import React from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import AppText from './AppText';
+import Badge from './Badge';
+import { useTheme } from '../theme/ThemeProvider';
+
+const STATUS_TONE = {
+  Playing: 'primary',
+  Completed: 'success',
+  Backlog: 'warning',
+  Dropped: 'danger',
+};
 
 export default function GameListItem({ item, onPress }) {
-  const statusTheme = statusColors[item.status] || statusColors.Backlog;
+  const { colors, spacing, radius, shadow } = useTheme();
+  const badgeTone = STATUS_TONE[item.status] || 'warning';
 
   return (
-    <View style={[styles.cardWrapper, shadow(1)]}>
+    <View
+      style={[
+        styles.cardWrapper,
+        shadow(1),
+        {
+          borderRadius: radius.md,
+          marginBottom: spacing.sm,
+          borderColor: colors.border,
+          backgroundColor: colors.surface,
+        },
+      ]}
+    >
       <Pressable
         onPress={onPress}
         hitSlop={6}
@@ -14,33 +36,27 @@ export default function GameListItem({ item, onPress }) {
         accessibilityLabel={`Ver detalhes de ${item.title}, status ${item.status}, nota ${item.rating}`}
         style={({ pressed }) => [
           styles.card,
-          pressed && styles.cardPressed,
+          {
+            padding: spacing.md,
+            gap: spacing.md,
+            backgroundColor: pressed ? colors.surfaceAlt : colors.surface,
+          },
         ]}
       >
-        <View style={styles.mainInfo}>
-          <Text style={styles.title} numberOfLines={1}>
+        <View style={[styles.mainInfo, { gap: spacing.xs }]}>
+          <AppText variant="subtitle" numberOfLines={1} style={styles.title}>
             {item.title}
-          </Text>
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor: statusTheme.bg,
-                borderColor: statusTheme.border,
-              },
-            ]}
-          >
-            <Text style={[styles.statusText, { color: statusTheme.text }]}>
-              {item.status}
-            </Text>
-          </View>
+          </AppText>
+          <Badge label={item.status} tone={badgeTone} />
         </View>
 
         <View style={styles.ratingBox}>
-          <Text style={styles.ratingLabel}>NOTA</Text>
-          <Text style={styles.ratingValue}>
-            {item.rating ? `${Number(item.rating).toFixed(1)}/10` : '—'}
-          </Text>
+          <AppText variant="caption" tone="muted">
+            NOTA
+          </AppText>
+          <AppText variant="subtitle" tone="warning" style={styles.ratingValue}>
+            {item.rating > 0 ? `${Number(item.rating).toFixed(1)}/10` : '—'}
+          </AppText>
         </View>
       </Pressable>
     </View>
@@ -49,59 +65,28 @@ export default function GameListItem({ item, onPress }) {
 
 const styles = StyleSheet.create({
   cardWrapper: {
-    borderRadius: radius.md,
     overflow: 'hidden',
-    marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: spacing.md,
-    minHeight: 72,
-    gap: spacing.md,
-  },
-  cardPressed: {
-    backgroundColor: colors.surfacePressed,
+    minHeight: 74,
   },
   mainInfo: {
     flex: 1,
-    gap: spacing.sm,
     alignItems: 'flex-start',
   },
   title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  statusBadge: {
-    paddingVertical: 3,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    flexShrink: 1,
   },
   ratingBox: {
     alignItems: 'flex-end',
     justifyContent: 'center',
     minWidth: 64,
   },
-  ratingLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-  },
   ratingValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.accent,
     marginTop: 2,
   },
 });
