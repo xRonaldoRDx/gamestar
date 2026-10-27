@@ -28,9 +28,8 @@ export default function GameDetailsScreen({ route, navigation }) {
         tone="muted"
         style={[styles.centerText, { marginBottom: spacing.lg }]}
       >
-        Na Fase 5, esta tela fará o carregamento sob demanda (lazy loading) da
-        capa oficial via RAWG API usando o rawg_id ({game?.rawg_id ?? 'N/A'}) e
-        exibirá a análise completa.
+        Na Fase 5, esta tela fará o carregamento sob demanda da capa oficial
+        e exibirá a análise completa deste jogo.
       </AppText>
 
       <Button

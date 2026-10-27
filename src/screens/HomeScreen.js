@@ -20,10 +20,12 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Barra de Topo */}
       <View
         style={[
           styles.headerBanner,
           {
+            backgroundColor: colors.surface,
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.md,
             borderBottomColor: colors.border,
@@ -35,8 +37,8 @@ export default function HomeScreen({ navigation }) {
           <AppText variant="title">Gamestar Backlog</AppText>
           <AppText variant="caption" tone="muted">
             {jogos.length === 1
-              ? '1 jogo registrado (Modo Texto Rápido)'
-              : `${jogos.length} jogos registrados (Modo Texto Rápido)`}
+              ? '1 jogo no acervo'
+              : `${jogos.length} jogos no acervo`}
           </AppText>
         </View>
 
@@ -46,15 +48,17 @@ export default function HomeScreen({ navigation }) {
         />
       </View>
 
+      {/* Estado 1: Loading */}
       {carregando ? (
         <View style={[styles.centerBox, { padding: spacing.xl, gap: spacing.sm }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <AppText variant="body" tone="muted">
-            Carregando seu backlog...
+            Carregando sua biblioteca...
           </AppText>
         </View>
       ) : null}
 
+      {/* Estado 2: Erro */}
       {!carregando && erro ? (
         <View
           style={[
@@ -82,13 +86,14 @@ export default function HomeScreen({ navigation }) {
         </View>
       ) : null}
 
+      {/* Estado 3: Sucesso com FlatList */}
       {!carregando && !erro ? (
         <FlatList
           data={jogos}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{
             padding: spacing.md,
-            paddingBottom: spacing.xl,
+            paddingBottom: spacing.xxl,
           }}
           renderItem={({ item }) => (
             <GameListItem
@@ -98,10 +103,10 @@ export default function HomeScreen({ navigation }) {
           )}
           ListEmptyComponent={
             <EmptyState
-              badge="COLEÇÃO VAZIA"
-              title="Seu backlog está vazio"
-              description="Você ainda não possui jogos cadastrados no Gamestar. Pesquise títulos na RAWG API ou adicione manualmente para registrar suas notas e avaliações."
-              actionLabel="+ Buscar Primeiro Jogo"
+              badge="BIBLIOTECA VAZIA"
+              title="Sua biblioteca está vazia"
+              description="Você ainda não registrou nenhum jogo no Gamestar. Pesquise títulos no catálogo ou adicione manualmente."
+              actionLabel="+ Buscar Jogos"
               onActionPress={() => navigation.navigate('Search')}
             />
           }

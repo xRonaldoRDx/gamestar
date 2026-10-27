@@ -22,7 +22,7 @@ export function useGamesSearch() {
       const resposta = await buscarJogosNaRawg(termo);
       setDados(resposta);
     } catch (e) {
-      setErro(e.message || 'Falha ao buscar dados na RAWG API.');
+      setErro(e.message || 'Não foi possível carregar os jogos do catálogo.');
       setDados([]);
     } finally {
       setCarregando(false);

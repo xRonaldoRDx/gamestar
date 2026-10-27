@@ -1,5 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { initDB, listarJogosBacklog } from '../database/database';
+import {
+  atualizarCapaLocalBacklog,
+  initDB,
+  listarJogosBacklog,
+} from '../database/database';
+import { salvarCapaLocal } from '../services/imageStorage';
 
 export const BacklogContext = createContext(null);
 
@@ -33,6 +38,32 @@ export const BacklogProvider = ({ children }) => {
       });
   }, [carregarBacklog]);
 
+  /**
+   * Orquestra o download de uma capa remota para o sistema de arquivos local
+   * via expo-file-system e retorna a URI local (file://...).
+   * Caso o id do registro no SQLite seja informado, persiste a URI no banco.
+   */
+  const baixarESalvarCapaLocal = useCallback(
+    async (remoteImageUrl, gameKey, backlogId = null) => {
+      if (!remoteImageUrl) {
+        return '';
+      }
+
+      const localUri = await salvarCapaLocal(
+        remoteImageUrl,
+        gameKey || Date.now()
+      );
+
+      if (localUri && backlogId) {
+        await atualizarCapaLocalBacklog(backlogId, localUri);
+        await carregarBacklog();
+      }
+
+      return localUri;
+    },
+    [carregarBacklog]
+  );
+
   return (
     <BacklogContext.Provider
       value={{
@@ -40,6 +71,7 @@ export const BacklogProvider = ({ children }) => {
         carregando,
         erro,
         carregarBacklog,
+        baixarESalvarCapaLocal,
       }}
     >
       {children}

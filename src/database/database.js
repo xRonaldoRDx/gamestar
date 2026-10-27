@@ -27,21 +27,34 @@ export const initDB = async () => {
       playtime INTEGER DEFAULT 0,
       achievements INTEGER DEFAULT 0,
       review_text TEXT DEFAULT '',
+      cover_uri TEXT DEFAULT '',
+      release_year TEXT DEFAULT '',
       added_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
 
-  // Verificar se a tabela está vazia para inserir dados iniciais de teste (mock/seed)
-  // utilizando estritamente queries parametrizadas (?)
+  // Migração segura para adicionar cover_uri e release_year caso a tabela já exista
+  const colunas = await db.getAllAsync('PRAGMA table_info(Backlog);');
+  const nomesColunas = colunas.map((col) => col.name);
+
+  if (!nomesColunas.includes('cover_uri')) {
+    await db.execAsync("ALTER TABLE Backlog ADD COLUMN cover_uri TEXT DEFAULT '';");
+  }
+
+  if (!nomesColunas.includes('release_year')) {
+    await db.execAsync("ALTER TABLE Backlog ADD COLUMN release_year TEXT DEFAULT '';");
+  }
+
+  // Carga inicial com mock data se a tabela estiver vazia
   const firstRow = await db.getFirstAsync('SELECT count(*) as count FROM Backlog');
 
   if (firstRow && firstRow.count === 0) {
     const agora = new Date().toISOString();
 
     await db.runAsync(
-      `INSERT INTO Backlog (rawg_id, title, status, rating, playtime, achievements, review_text, added_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO Backlog (rawg_id, title, status, rating, playtime, achievements, review_text, cover_uri, release_year, added_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         3328,
         'The Witcher 3: Wild Hunt',
@@ -50,14 +63,16 @@ export const initDB = async () => {
         64,
         31,
         'Narrativa impecável e missões secundárias memoráveis.',
+        '',
+        '2015',
         agora,
         agora,
       ]
     );
 
     await db.runAsync(
-      `INSERT INTO Backlog (rawg_id, title, status, rating, playtime, achievements, review_text, added_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO Backlog (rawg_id, title, status, rating, playtime, achievements, review_text, cover_uri, release_year, added_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         4200,
         'Portal 2',
@@ -66,6 +81,8 @@ export const initDB = async () => {
         14,
         28,
         'Design de puzzles genial do início ao fim.',
+        '',
+        '2011',
         agora,
         agora,
       ]
@@ -83,4 +100,13 @@ export const listarJogosBacklog = async () => {
 export const buscarJogoBacklogPorId = async (id) => {
   const db = await getDatabase();
   return await db.getFirstAsync('SELECT * FROM Backlog WHERE id = ?', [id]);
+};
+
+export const atualizarCapaLocalBacklog = async (id, coverUri) => {
+  const db = await getDatabase();
+  const agora = new Date().toISOString();
+  await db.runAsync(
+    'UPDATE Backlog SET cover_uri = ?, updated_at = ? WHERE id = ?',
+    [coverUri || '', agora, id]
+  );
 };

@@ -1,19 +1,22 @@
 const BASE_URL = 'https://api.rawg.io/api';
 
+/**
+ * Consome silenciosamente a chave configurada no ambiente (.env).
+ * Nunca expõe detalhes de configuração para o usuário final.
+ */
 function obterChaveApi() {
   const apiKey = process.env.EXPO_PUBLIC_RAWG_API_KEY?.trim();
 
   if (!apiKey) {
-    throw new Error(
-      'Chave da RAWG API não encontrada. Configure EXPO_PUBLIC_RAWG_API_KEY no arquivo .env e reinicie o Expo.'
-    );
+    console.error('[API Service] Chave de API ausente na variável EXPO_PUBLIC_RAWG_API_KEY.');
+    throw new Error('Catálogo de jogos temporariamente indisponível. Tente novamente mais tarde.');
   }
 
   return apiKey;
 }
 
 /**
- * Busca jogos na RAWG API pelo nome retornando apenas metadados textuais leves.
+ * Busca jogos no catálogo remoto pelo nome retornando apenas metadados textuais leves.
  */
 export async function buscarJogosNaRawg(termoBusca) {
   const queryLimpa = (termoBusca || '').trim();
@@ -26,25 +29,28 @@ export async function buscarJogosNaRawg(termoBusca) {
     queryLimpa
   )}&page_size=15&key=${encodeURIComponent(apiKey)}`;
 
-  // 1. Faz a chamada de rede via Fetch API nativa
-  const resposta = await fetch(url);
-
-  // 2. Verifica se houve erro HTTP (401, 404, 500)
-  if (!resposta.ok) {
-    if (resposta.status === 401) {
-      throw new Error('Chave da RAWG API inválida ou não autorizada (Erro 401).');
-    }
-    throw new Error(`Falha ao buscar jogos na RAWG API (Status ${resposta.status}).`);
+  let resposta;
+  try {
+    resposta = await fetch(url);
+  } catch (err) {
+    console.error('[API Service] Erro de rede:', err);
+    throw new Error('Falha de conexão. Verifique sua internet e tente novamente.');
   }
 
-  // 3. Converte a resposta para objeto JavaScript
+  if (!resposta.ok) {
+    if (resposta.status === 401) {
+      console.error('[API Service] Chave não autorizada pelo provedor.');
+      throw new Error('Serviço de catálogo em manutenção. Tente novamente mais tarde.');
+    }
+    throw new Error('Não foi possível obter resultados no catálogo no momento.');
+  }
+
   const dados = await resposta.json();
 
   if (!dados || !Array.isArray(dados.results)) {
     return [];
   }
 
-  // Retorna estritamente campos de texto para manter a listagem rápida
   return dados.results.map((game) => ({
     rawg_id: game.id,
     title: game.name,
@@ -57,7 +63,7 @@ export async function buscarJogosNaRawg(termoBusca) {
 }
 
 /**
- * Busca detalhes e URL da capa oficial de um jogo pelo ID na RAWG (sob demanda para a Fase 5).
+ * Busca detalhes e URL da capa oficial de um jogo pelo ID no catálogo.
  */
 export async function buscarDetalhesJogoNaRawg(rawgId) {
   if (!rawgId) {
@@ -69,10 +75,16 @@ export async function buscarDetalhesJogoNaRawg(rawgId) {
     String(rawgId)
   )}?key=${encodeURIComponent(apiKey)}`;
 
-  const resposta = await fetch(url);
+  let resposta;
+  try {
+    resposta = await fetch(url);
+  } catch (err) {
+    console.error('[API Service] Erro de rede ao buscar detalhes:', err);
+    throw new Error('Falha de conexão ao carregar detalhes do jogo.');
+  }
 
   if (!resposta.ok) {
-    throw new Error(`Falha ao buscar detalhes do jogo (Status ${resposta.status}).`);
+    throw new Error('Não foi possível carregar os detalhes deste jogo no momento.');
   }
 
   const dados = await resposta.json();

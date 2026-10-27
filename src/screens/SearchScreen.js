@@ -34,10 +34,11 @@ export default function SearchScreen({ navigation }) {
   }
 
   function selecionarJogo(item) {
-    navigation.navigate('GameForm', {
-      prefillGame: {
+    navigation.navigate('GameDetails', {
+      rawgGame: {
         rawg_id: item.rawg_id,
         title: item.title,
+        release_year: item.released,
       },
     });
   }
@@ -48,14 +49,16 @@ export default function SearchScreen({ navigation }) {
         style={[
           styles.topBar,
           {
+            backgroundColor: colors.surface,
             paddingHorizontal: spacing.md,
             paddingTop: spacing.sm,
-            paddingBottom: spacing.xs,
+            paddingBottom: spacing.sm,
+            borderBottomColor: colors.border,
           },
         ]}
       >
         <AppText variant="caption" tone="muted">
-          Catálogo oficial RAWG (modo leve sem imagens)
+          Catálogo Global (busca rápida em texto)
         </AppText>
 
         <Pressable
@@ -91,7 +94,7 @@ export default function SearchScreen({ navigation }) {
               paddingHorizontal: spacing.md,
             },
           ]}
-          placeholder="Ex: Elden Ring, Hollow Knight, Celeste..."
+          placeholder="Digite o título do jogo..."
           placeholderTextColor={colors.textMuted}
           value={termo}
           onChangeText={setTermo}
@@ -112,7 +115,7 @@ export default function SearchScreen({ navigation }) {
         <View style={[styles.centerBox, { padding: spacing.xl, gap: spacing.sm }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <AppText variant="body" tone="muted">
-            Consultando catálogo RAWG...
+            Consultando catálogo de jogos...
           </AppText>
         </View>
       ) : null}
@@ -146,7 +149,7 @@ export default function SearchScreen({ navigation }) {
           keyExtractor={(item) => String(item.rawg_id)}
           contentContainerStyle={{
             padding: spacing.md,
-            paddingBottom: spacing.xl,
+            paddingBottom: spacing.xxl,
           }}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
@@ -157,7 +160,7 @@ export default function SearchScreen({ navigation }) {
                 {
                   borderRadius: radius.md,
                   marginBottom: spacing.sm,
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.card,
                   borderColor: colors.border,
                 },
               ]}
@@ -165,17 +168,17 @@ export default function SearchScreen({ navigation }) {
               <Pressable
                 onPress={() => selecionarJogo(item)}
                 hitSlop={6}
-                android_ripple={{ color: 'rgba(255, 255, 255, 0.08)' }}
+                android_ripple={{ color: 'rgba(102, 192, 244, 0.15)' }}
                 accessibilityRole="button"
-                accessibilityLabel={`Selecionar ${item.title}, lançado em ${item.released}`}
+                accessibilityLabel={`Ver capa e detalhes de ${item.title}`}
                 style={({ pressed }) => [
                   styles.resultCard,
                   {
                     padding: spacing.md,
                     gap: spacing.md,
                     backgroundColor: pressed
-                      ? colors.surfaceAlt
-                      : colors.surface,
+                      ? colors.cardPressed
+                      : colors.card,
                   },
                 ]}
               >
@@ -191,14 +194,14 @@ export default function SearchScreen({ navigation }) {
 
                 <View style={styles.rightBadge}>
                   {item.metacritic ? (
-                    <Badge label={`MC ${item.metacritic}`} tone="success" />
+                    <Badge label={`★ ${item.metacritic}`} tone="success" />
                   ) : null}
                   <AppText
                     variant="caption"
                     tone="primary"
                     style={styles.selectText}
                   >
-                    Selecionar
+                    Ver Capa →
                   </AppText>
                 </View>
               </Pressable>
@@ -209,15 +212,15 @@ export default function SearchScreen({ navigation }) {
               <EmptyState
                 badge="SEM RESULTADOS"
                 title="Nenhum jogo encontrado"
-                description={`Não encontramos resultados para "${termo}". Verifique a grafia ou cadastre manualmente.`}
+                description={`Não encontramos resultados para "${termo}". Verifique o nome digitado ou realize o cadastro manual.`}
                 actionLabel="Cadastrar Manualmente"
                 onActionPress={() => navigation.navigate('GameForm')}
               />
             ) : (
               <EmptyState
-                badge="BUSCA RAWG"
-                title="Explore o catálogo da RAWG"
-                description="Digite o título de um jogo acima para importar seu ID oficial sem carregar imagens pesadas na listagem."
+                badge="CATÁLOGO"
+                title="Explore nosso catálogo"
+                description="Pesquise jogos pelo título e os adicione à sua biblioteca pessoal."
               />
             )
           }
@@ -235,6 +238,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomWidth: 1,
   },
   manualLink: {
     fontWeight: '700',
@@ -247,7 +251,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     minHeight: 48,
-    fontSize: 15,
+    fontSize: 14,
   },
   centerBox: {
     flex: 1,

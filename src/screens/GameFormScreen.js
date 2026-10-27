@@ -33,13 +33,13 @@ export default function GameFormScreen({ route }) {
           ]}
         >
           <AppText variant="caption" tone="muted">
-            Jogo selecionado na RAWG:
+            Jogo selecionado do catálogo:
           </AppText>
           <AppText variant="subtitle" style={styles.centerText}>
             {prefillGame.title}
           </AppText>
-          <AppText variant="caption" tone="warning">
-            RAWG ID: {prefillGame.rawg_id}
+          <AppText variant="caption" tone="primary">
+            Código do Jogo: #{prefillGame.rawg_id}
           </AppText>
         </View>
       ) : null}
