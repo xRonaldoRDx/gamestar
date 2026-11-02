@@ -1,15 +1,15 @@
-import * as FileSystem from 'expo-file-system/legacy';
-
-const COVERS_DIR = `${FileSystem.documentDirectory}covers/`;
+import { Directory, File, Paths } from 'expo-file-system';
 
 /**
- * Garante que a pasta local para capas exista.
+ * Obtém e garante que o diretório local de capas exista (API moderna do Expo SDK 58).
+ * @returns {Directory} Instância do diretório 'covers'
  */
-async function garantirDiretorio() {
-  const dirInfo = await FileSystem.getInfoAsync(COVERS_DIR);
-  if (!dirInfo.exists) {
-    await FileSystem.makeDirectoryAsync(COVERS_DIR, { intermediates: true });
+function obterDiretorioCapas() {
+  const diretorio = new Directory(Paths.document, 'covers');
+  if (!diretorio.exists) {
+    diretorio.create({ intermediates: true, idempotent: true });
   }
+  return diretorio;
 }
 
 /**
@@ -24,19 +24,16 @@ export async function salvarCapaLocal(remoteUrl, gameId) {
   }
 
   try {
-    await garantirDiretorio();
-
+    const diretorioCapas = obterDiretorioCapas();
     const extensao = remoteUrl.split('.').pop()?.split('?')[0] || 'jpg';
     const nomeArquivo = `cover_${gameId}_${Date.now()}.${extensao}`;
-    const destinoLocal = `${COVERS_DIR}${nomeArquivo}`;
+    const arquivoDestino = new File(diretorioCapas, nomeArquivo);
 
-    const downloadResult = await FileSystem.downloadAsync(remoteUrl, destinoLocal);
+    const arquivoBaixado = await File.downloadFileAsync(remoteUrl, arquivoDestino, {
+      idempotent: true,
+    });
 
-    if (downloadResult.status === 200) {
-      return downloadResult.uri;
-    }
-
-    return '';
+    return arquivoBaixado?.uri || '';
   } catch (error) {
     console.error('[ImageStorage] Falha ao baixar capa localmente:', error);
     return '';
@@ -53,7 +50,10 @@ export async function removerCapaLocal(localUri) {
   }
 
   try {
-    await FileSystem.deleteAsync(localUri, { idempotent: true });
+    const arquivo = new File(localUri);
+    if (arquivo.exists) {
+      arquivo.delete();
+    }
   } catch (error) {
     console.warn('[ImageStorage] Aviso ao remover capa local:', error);
   }
