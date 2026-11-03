@@ -34,8 +34,8 @@ export default function SearchScreen({ navigation }) {
   }
 
   function selecionarJogo(item) {
-    navigation.navigate('GameDetails', {
-      rawgGame: {
+    navigation.navigate('GameForm', {
+      prefillGame: {
         rawg_id: item.rawg_id,
         title: item.title,
         release_year: item.released,
@@ -201,7 +201,7 @@ export default function SearchScreen({ navigation }) {
                     tone="primary"
                     style={styles.selectText}
                   >
-                    Ver Capa →
+                    Avaliar →
                   </AppText>
                 </View>
               </Pressable>

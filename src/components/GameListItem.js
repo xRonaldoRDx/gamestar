@@ -5,6 +5,11 @@ import Badge from './Badge';
 import { useTheme } from '../theme/ThemeProvider';
 
 const STATUS_TONE = {
+  Jogando: 'primary',
+  Zerado: 'success',
+  Pausado: 'warning',
+  'Lista de Desejos': 'neutral',
+  Abandonado: 'danger',
   Playing: 'primary',
   Completed: 'success',
   Backlog: 'warning',
@@ -95,10 +100,10 @@ export default function GameListItem({ item, onPress }) {
               </AppText>
               <AppText
                 variant="subtitle"
-                tone="primary"
+                tone="warning"
                 style={styles.ratingNumber}
               >
-                {item.rating > 0 ? `${Number(item.rating).toFixed(1)}/10` : '—'}
+                {item.rating > 0 ? `★ ${Number(item.rating).toFixed(1)}/5.0` : 'Sem nota'}
               </AppText>
             </View>
 

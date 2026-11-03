@@ -19,21 +19,33 @@ export default function GameDetailsScreen({ route, navigation }) {
         {game?.title || 'Detalhes do Jogo'}
       </AppText>
 
-      <AppText variant="subtitle" tone="warning" style={{ marginBottom: spacing.md }}>
-        Status: {game?.status} | Nota: {game?.rating > 0 ? `${game.rating}/10` : '—'}
+      <AppText variant="subtitle" tone="warning" style={{ marginBottom: spacing.xs }}>
+        Status: {game?.status} | Nota: {game?.rating > 0 ? `★ ${Number(game.rating).toFixed(1)}/5.0` : 'Sem nota'}
       </AppText>
 
+      <AppText variant="caption" tone="muted" style={{ marginBottom: spacing.md }}>
+        Tempo jogado: {game?.playtime ? `${game.playtime}h` : '0h'}
+      </AppText>
+
+      {game?.review_text ? (
+        <AppText
+          variant="body"
+          style={[styles.centerText, { marginBottom: spacing.md }]}
+        >
+          "{game.review_text}"
+        </AppText>
+      ) : null}
+
       <AppText
-        variant="body"
+        variant="caption"
         tone="muted"
         style={[styles.centerText, { marginBottom: spacing.lg }]}
       >
-        Na Fase 5, esta tela fará o carregamento sob demanda da capa oficial
-        e exibirá a análise completa deste jogo.
+        Na Fase 5, esta tela exibirá o painel detalhado completo da análise.
       </AppText>
 
       <Button
-        label="Editar Avaliação (Fase 4)"
+        label="Editar ou Excluir Avaliação"
         onPress={() => navigation.navigate('GameForm', { game })}
       />
     </View>
