@@ -23,7 +23,9 @@ export default function SearchScreen({ navigation }) {
     dados,
     erro,
     buscaRealizada,
+    modoDemonstracao,
     executarBusca,
+    carregarDadosDemonstracao,
   } = useGamesSearch();
 
   const { colors, spacing, radius, shadow } = useTheme();
@@ -39,6 +41,7 @@ export default function SearchScreen({ navigation }) {
         rawg_id: item.rawg_id,
         title: item.title,
         release_year: item.released,
+        remote_cover_url: item.background_image || '',
       },
     });
   }
@@ -57,8 +60,10 @@ export default function SearchScreen({ navigation }) {
           },
         ]}
       >
-        <AppText variant="caption" tone="muted">
-          Catálogo Global (busca rápida em texto)
+        <AppText variant="caption" tone="muted" numberOfLines={1}>
+          {modoDemonstracao
+            ? 'Modo Demonstração Offline Ativo'
+            : 'Catálogo Global (busca rápida em texto)'}
         </AppText>
 
         <Pressable
@@ -120,7 +125,7 @@ export default function SearchScreen({ navigation }) {
         </View>
       ) : null}
 
-      {/* Estado 2: Erro */}
+      {/* Estado 2: Erro Explícito + Botão de Fallback (Dados de Demonstração) */}
       {!carregando && erro ? (
         <View
           style={[
@@ -131,18 +136,58 @@ export default function SearchScreen({ navigation }) {
               borderRadius: radius.md,
               borderColor: colors.danger,
               backgroundColor: colors.danger + '1A',
-              gap: spacing.xs,
+              gap: spacing.sm,
             },
           ]}
         >
           <AppText variant="subtitle" tone="danger">
-            Não foi possível concluir a busca
+            Não foi possível conectar ao servidor de jogos.
           </AppText>
-          <AppText variant="body">{erro}</AppText>
+
+          <AppText variant="body" tone="muted">
+            {erro}
+          </AppText>
+
+          <View
+            style={[
+              styles.fallbackButtonWrapper,
+              shadow(1),
+              {
+                borderRadius: radius.md,
+                borderColor: colors.primary,
+                marginTop: spacing.xs,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={carregarDadosDemonstracao}
+              hitSlop={8}
+              android_ripple={{ color: 'rgba(102, 192, 244, 0.25)' }}
+              accessibilityRole="button"
+              accessibilityLabel="Carregar dados de demonstração"
+              style={({ pressed }) => [
+                styles.fallbackButton,
+                {
+                  paddingVertical: spacing.sm + 4,
+                  paddingHorizontal: spacing.md,
+                  backgroundColor: pressed ? colors.cardPressed : colors.card,
+                },
+              ]}
+            >
+              <AppText
+                variant="body"
+                tone="primary"
+                numberOfLines={1}
+                style={styles.fallbackButtonText}
+              >
+                Carregar dados de demonstração
+              </AppText>
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
-      {/* Estado 3: Sucesso */}
+      {/* Estado 3: Sucesso (Resultados da API ou Dados de Demonstração) */}
       {!carregando && !erro ? (
         <FlatList
           data={dados}
@@ -170,7 +215,7 @@ export default function SearchScreen({ navigation }) {
                 hitSlop={6}
                 android_ripple={{ color: 'rgba(102, 192, 244, 0.15)' }}
                 accessibilityRole="button"
-                accessibilityLabel={`Ver capa e detalhes de ${item.title}`}
+                accessibilityLabel={`Selecionar ${item.title}`}
                 style={({ pressed }) => [
                   styles.resultCard,
                   {
@@ -239,6 +284,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
+    gap: 8,
   },
   manualLink: {
     fontWeight: '700',
@@ -260,6 +306,19 @@ const styles = StyleSheet.create({
   },
   errorBox: {
     borderWidth: 1,
+  },
+  fallbackButtonWrapper: {
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  fallbackButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fallbackButtonText: {
+    fontWeight: '700',
+    textAlign: 'center',
   },
   resultCardWrapper: {
     overflow: 'hidden',
