@@ -17,25 +17,25 @@ import { useTheme } from '../theme/ThemeProvider';
 
 export default function SearchScreen({ navigation }) {
   const {
-    termo,
-    setTermo,
-    carregando,
-    dados,
-    erro,
-    buscaRealizada,
-    modoDemonstracao,
-    executarBusca,
-    carregarDadosDemonstracao,
+    searchQuery,
+    setSearchQuery,
+    isLoading,
+    games,
+    error,
+    hasSearched,
+    isMockMode,
+    searchGames,
+    enableMockMode,
   } = useGamesSearch();
 
   const { colors, spacing, radius, shadow } = useTheme();
 
   function handleSearch() {
     Keyboard.dismiss();
-    executarBusca();
+    searchGames();
   }
 
-  function selecionarJogo(item) {
+  function handleSelectGame(item) {
     navigation.navigate('GameForm', {
       prefillGame: {
         rawg_id: item.rawg_id,
@@ -61,9 +61,7 @@ export default function SearchScreen({ navigation }) {
         ]}
       >
         <AppText variant="caption" tone="muted" numberOfLines={1}>
-          {modoDemonstracao
-            ? 'Modo Demonstração Offline Ativo'
-            : 'Catálogo Global (busca rápida em texto)'}
+          Catálogo de Jogos (busca rápida em texto)
         </AppText>
 
         <Pressable
@@ -77,6 +75,30 @@ export default function SearchScreen({ navigation }) {
           </AppText>
         </Pressable>
       </View>
+
+      {isMockMode ? (
+        <View
+          style={[
+            styles.offlineBanner,
+            {
+              backgroundColor: colors.warning + '22',
+              borderBottomColor: colors.warning,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.xs + 2,
+            },
+          ]}
+        >
+          <Badge label="Modo Offline Ativo" tone="warning" />
+          <AppText
+            variant="caption"
+            tone="muted"
+            numberOfLines={1}
+            style={styles.offlineBannerText}
+          >
+            Pesquisando na base local de demonstração
+          </AppText>
+        </View>
+      ) : null}
 
       <View
         style={[
@@ -101,8 +123,8 @@ export default function SearchScreen({ navigation }) {
           ]}
           placeholder="Digite o título do jogo..."
           placeholderTextColor={colors.textMuted}
-          value={termo}
-          onChangeText={setTermo}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
           autoCorrect={false}
@@ -111,12 +133,11 @@ export default function SearchScreen({ navigation }) {
         <Button
           label="Buscar"
           onPress={handleSearch}
-          disabled={carregando}
+          disabled={isLoading}
         />
       </View>
 
-      {/* Estado 1: Loading */}
-      {carregando ? (
+      {isLoading ? (
         <View style={[styles.centerBox, { padding: spacing.xl, gap: spacing.sm }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <AppText variant="body" tone="muted">
@@ -125,8 +146,7 @@ export default function SearchScreen({ navigation }) {
         </View>
       ) : null}
 
-      {/* Estado 2: Erro Explícito + Botão de Fallback (Dados de Demonstração) */}
-      {!carregando && erro ? (
+      {!isLoading && error ? (
         <View
           style={[
             styles.errorBox,
@@ -145,7 +165,7 @@ export default function SearchScreen({ navigation }) {
           </AppText>
 
           <AppText variant="body" tone="muted">
-            {erro}
+            {error}
           </AppText>
 
           <View
@@ -160,7 +180,7 @@ export default function SearchScreen({ navigation }) {
             ]}
           >
             <Pressable
-              onPress={carregarDadosDemonstracao}
+              onPress={enableMockMode}
               hitSlop={8}
               android_ripple={{ color: 'rgba(102, 192, 244, 0.25)' }}
               accessibilityRole="button"
@@ -187,10 +207,9 @@ export default function SearchScreen({ navigation }) {
         </View>
       ) : null}
 
-      {/* Estado 3: Sucesso (Resultados da API ou Dados de Demonstração) */}
-      {!carregando && !erro ? (
+      {!isLoading && !error ? (
         <FlatList
-          data={dados}
+          data={games}
           keyExtractor={(item) => String(item.rawg_id)}
           contentContainerStyle={{
             padding: spacing.md,
@@ -211,7 +230,7 @@ export default function SearchScreen({ navigation }) {
               ]}
             >
               <Pressable
-                onPress={() => selecionarJogo(item)}
+                onPress={() => handleSelectGame(item)}
                 hitSlop={6}
                 android_ripple={{ color: 'rgba(102, 192, 244, 0.15)' }}
                 accessibilityRole="button"
@@ -253,19 +272,27 @@ export default function SearchScreen({ navigation }) {
             </View>
           )}
           ListEmptyComponent={
-            buscaRealizada ? (
+            hasSearched ? (
               <EmptyState
                 badge="SEM RESULTADOS"
-                title="Nenhum jogo encontrado"
-                description={`Não encontramos resultados para "${termo}". Verifique o nome digitado ou realize o cadastro manual.`}
+                title="Nenhum jogo encontrado. Tente outro nome."
+                description={`Não encontramos resultados para "${searchQuery}". Verifique o nome digitado ou realize o cadastro manual.`}
                 actionLabel="Cadastrar Manualmente"
                 onActionPress={() => navigation.navigate('GameForm')}
               />
             ) : (
               <EmptyState
-                badge="CATÁLOGO"
-                title="Explore nosso catálogo"
-                description="Pesquise jogos pelo título e os adicione à sua biblioteca pessoal."
+                badge={isMockMode ? 'MODO OFFLINE ATIVO' : 'CATÁLOGO'}
+                title={
+                  isMockMode
+                    ? 'Base de demonstração pronta'
+                    : 'Explore nosso catálogo'
+                }
+                description={
+                  isMockMode
+                    ? 'Digite o nome de um jogo na barra de pesquisa acima para buscar na base local offline.'
+                    : 'Pesquise jogos pelo título e os adicione à sua biblioteca pessoal.'
+                }
               />
             )
           }
@@ -288,6 +315,15 @@ const styles = StyleSheet.create({
   },
   manualLink: {
     fontWeight: '700',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    gap: 8,
+  },
+  offlineBannerText: {
+    flex: 1,
   },
   searchBar: {
     flexDirection: 'row',

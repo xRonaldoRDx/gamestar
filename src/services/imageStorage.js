@@ -1,60 +1,48 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-/**
- * Obtém e garante que o diretório local de capas exista (API moderna do Expo SDK 58).
- * @returns {Directory} Instância do diretório 'covers'
- */
-function obterDiretorioCapas() {
-  const diretorio = new Directory(Paths.document, 'covers');
-  if (!diretorio.exists) {
-    diretorio.create({ intermediates: true, idempotent: true });
+const COVERS_DIRECTORY_NAME = 'covers';
+
+function getCoversDirectory() {
+  const directory = new Directory(Paths.document, COVERS_DIRECTORY_NAME);
+  if (!directory.exists) {
+    directory.create({ intermediates: true, idempotent: true });
   }
-  return diretorio;
+  return directory;
 }
 
-/**
- * Baixa uma imagem remota para o sistema de arquivos local do aparelho.
- * @param {string} remoteUrl URL da imagem remota
- * @param {number|string} gameId Identificador único do jogo
- * @returns {Promise<string>} Caminho local do arquivo (file://...) ou string vazia em caso de falha.
- */
-export async function salvarCapaLocal(remoteUrl, gameId) {
+export async function saveLocalCover(remoteUrl, gameId) {
   if (!remoteUrl || typeof remoteUrl !== 'string') {
     return '';
   }
 
   try {
-    const diretorioCapas = obterDiretorioCapas();
-    const extensao = remoteUrl.split('.').pop()?.split('?')[0] || 'jpg';
-    const nomeArquivo = `cover_${gameId}_${Date.now()}.${extensao}`;
-    const arquivoDestino = new File(diretorioCapas, nomeArquivo);
+    const coversDirectory = getCoversDirectory();
+    const extension = remoteUrl.split('.').pop()?.split('?')[0] || 'jpg';
+    const fileName = `cover_${gameId}_${Date.now()}.${extension}`;
+    const targetFile = new File(coversDirectory, fileName);
 
-    const arquivoBaixado = await File.downloadFileAsync(remoteUrl, arquivoDestino, {
+    const downloadedFile = await File.downloadFileAsync(remoteUrl, targetFile, {
       idempotent: true,
     });
 
-    return arquivoBaixado?.uri || '';
+    return downloadedFile?.uri || '';
   } catch (error) {
-    console.error('[ImageStorage] Falha ao baixar capa localmente:', error);
+    console.error('[ImageStorage] Failed to download local cover:', error);
     return '';
   }
 }
 
-/**
- * Remove a imagem salva no armazenamento local quando a avaliação é excluída.
- * @param {string} localUri Caminho do arquivo local
- */
-export async function removerCapaLocal(localUri) {
+export async function deleteLocalCover(localUri) {
   if (!localUri || !localUri.startsWith('file://')) {
     return;
   }
 
   try {
-    const arquivo = new File(localUri);
-    if (arquivo.exists) {
-      arquivo.delete();
+    const file = new File(localUri);
+    if (file.exists) {
+      file.delete();
     }
   } catch (error) {
-    console.warn('[ImageStorage] Aviso ao remover capa local:', error);
+    console.warn('[ImageStorage] Failed to delete local cover:', error);
   }
 }

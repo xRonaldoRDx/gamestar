@@ -1,8 +1,4 @@
-/**
- * Dados mockados simulando a estrutura de resposta da API de catálogo (RAWG)
- * para testes de resiliência e uso em modo de demonstração offline.
- */
-export const MOCK_RAWG_API_RESULTS = [
+export const MOCK_RAWG_GAMES = [
   {
     id: 3498,
     name: 'Grand Theft Auto V',
@@ -45,50 +41,39 @@ export const MOCK_RAWG_API_RESULTS = [
   },
 ];
 
-/**
- * Converte um item no formato bruto da API para o modelo consumido pelo ViewModel/View.
- */
-export function formatarJogoCatalogo(game) {
-  const anoLancamento = game.released ? String(game.released).slice(0, 4) : 'N/A';
-  const generosFormatados = Array.isArray(game.genres)
-    ? game.genres.map((g) => (typeof g === 'string' ? g : g.name)).join(', ')
-    : typeof game.genres === 'string'
-    ? game.genres
+// Adapter pattern: normalizes external provider payloads into the internal domain shape
+export function mapCatalogGame(rawGame) {
+  const releaseYear = rawGame.released ? String(rawGame.released).slice(0, 4) : 'N/A';
+  const formattedGenres = Array.isArray(rawGame.genres)
+    ? rawGame.genres.map((genre) => (typeof genre === 'string' ? genre : genre.name)).join(', ')
+    : typeof rawGame.genres === 'string'
+    ? rawGame.genres
     : '';
 
   return {
-    id: game.id,
-    rawg_id: game.rawg_id ?? game.id,
-    name: game.name ?? game.title,
-    title: game.title ?? game.name,
-    released: anoLancamento,
-    metacritic: game.metacritic ?? null,
-    background_image: game.background_image || null,
-    genres: generosFormatados,
+    id: rawGame.id,
+    rawg_id: rawGame.rawg_id ?? rawGame.id,
+    name: rawGame.name ?? rawGame.title,
+    title: rawGame.title ?? rawGame.name,
+    released: releaseYear,
+    metacritic: rawGame.metacritic ?? null,
+    background_image: rawGame.background_image || null,
+    genres: formattedGenres,
   };
 }
 
-/**
- * Lista dos 3 jogos de demonstração mapeados para o formato padrão do app.
- */
-export const mockGames = MOCK_RAWG_API_RESULTS.map(formatarJogoCatalogo);
+export const mockGamesList = MOCK_RAWG_GAMES.map(mapCatalogGame);
 
-/**
- * Filtra localmente o array de jogos mockados comparando de forma case-insensitive
- * o texto pesquisado exclusivamente com o nome real do jogo.
- * @param {string} termoBusca Texto digitado pelo usuário
- * @returns {Array} Jogos correspondentes
- */
-export function filtrarJogosMockPorNome(termoBusca) {
-  const termoNormalizado = String(termoBusca || '').trim().toLowerCase();
-  if (!termoNormalizado) {
+export function filterMockGamesByTitle(searchQuery) {
+  const normalizedQuery = String(searchQuery || '').trim().toLowerCase();
+  if (!normalizedQuery) {
     return [];
   }
 
-  return mockGames.filter((jogo) => {
-    const nomeReal = String(jogo.title || jogo.name || '').toLowerCase();
-    return nomeReal.includes(termoNormalizado);
+  return mockGamesList.filter((game) => {
+    const gameTitle = String(game.title || game.name || '').toLowerCase();
+    return gameTitle.includes(normalizedQuery);
   });
 }
 
-export default mockGames;
+export default mockGamesList;

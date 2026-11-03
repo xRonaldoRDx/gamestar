@@ -1,226 +1,206 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
-  atualizarCapaLocalBacklog,
-  atualizarJogoBacklog,
-  deletarJogoBacklog,
-  initDB,
-  inserirJogoBacklog,
-  listarJogosBacklog,
+  deleteBacklogGame,
+  getAllBacklogGames,
+  initDatabase,
+  insertBacklogGame,
+  updateBacklogGame,
+  updateBacklogLocalCover,
 } from '../database/database';
-import { buscarDetalhesJogoNaRawg } from '../services/api';
-import { removerCapaLocal, salvarCapaLocal } from '../services/imageStorage';
+import { fetchGameDetailsFromApi } from '../services/api';
+import { deleteLocalCover, saveLocalCover } from '../services/imageStorage';
 
 export const BacklogContext = createContext(null);
 
 export const BacklogProvider = ({ children }) => {
-  const [jogos, setJogos] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState('');
+  const [games, setGames] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const carregarBacklog = useCallback(async () => {
-    setCarregando(true);
-    setErro('');
+  const loadBacklog = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
     try {
-      const lista = await listarJogosBacklog();
-      setJogos(lista);
-    } catch (e) {
-      console.error('[BacklogContext] Erro ao carregar backlog:', e);
-      setErro(e.message || 'Não foi possível carregar os jogos do banco local.');
+      const backlogList = await getAllBacklogGames();
+      setGames(backlogList);
+    } catch (err) {
+      console.error('[BacklogContext] Failed to load backlog:', err);
+      setError(err.message || 'Não foi possível carregar os jogos do banco local.');
     } finally {
-      setCarregando(false);
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    initDB()
-      .then(() => carregarBacklog())
-      .catch((e) => {
-        console.error('[BacklogContext] Erro ao inicializar banco:', e);
-        setErro(e.message || 'Falha ao inicializar o banco SQLite.');
-        setCarregando(false);
+    initDatabase()
+      .then(() => loadBacklog())
+      .catch((err) => {
+        console.error('[BacklogContext] Failed to initialize database:', err);
+        setError(err.message || 'Falha ao inicializar o banco SQLite.');
+        setIsLoading(false);
       });
-  }, [carregarBacklog]);
+  }, [loadBacklog]);
 
-  /**
-   * Busca metadados visuais (URL da capa e ano de lançamento) de um jogo do catálogo
-   * para confirmação visual antes de salvar no banco local.
-   */
-  const obterPreviewCapaCatalogo = useCallback(async (rawgId) => {
+  const fetchCatalogCoverPreview = useCallback(async (rawgId) => {
     if (!rawgId) return null;
-    return await buscarDetalhesJogoNaRawg(rawgId);
+    return await fetchGameDetailsFromApi(rawgId);
   }, []);
 
-  /**
-   * Orquestra o download de uma capa remota para o sistema de arquivos local
-   * via expo-file-system e retorna a URI local (file://...).
-   */
-  const baixarESalvarCapaLocal = useCallback(
+  const downloadAndSaveLocalCover = useCallback(
     async (remoteImageUrl, gameKey, backlogId = null) => {
       if (!remoteImageUrl) {
         return '';
       }
 
-      const localUri = await salvarCapaLocal(
+      const localUri = await saveLocalCover(
         remoteImageUrl,
         gameKey || Date.now()
       );
 
       if (localUri && backlogId) {
-        await atualizarCapaLocalBacklog(backlogId, localUri);
-        await carregarBacklog();
+        await updateBacklogLocalCover(backlogId, localUri);
+        await loadBacklog();
       }
 
       return localUri;
     },
-    [carregarBacklog]
+    [loadBacklog]
   );
 
-  /**
-   * CREATE: Adiciona um novo jogo ao Backlog, baixando a capa para o armazenamento
-   * local via expo-file-system caso haja uma imagem remota disponível.
-   */
-  const adicionarJogo = useCallback(
-    async (dadosJogo) => {
-      setSalvando(true);
-      setErro('');
+  // Persists remote cover images into local file storage on save so the Backlog FlatList works 100% offline
+  const addGame = useCallback(
+    async (gameData) => {
+      setIsSaving(true);
+      setError('');
 
       try {
-        let coverUriLocal = dadosJogo.cover_uri || '';
-        let urlRemota = dadosJogo.remote_cover_url || '';
+        let localCoverUri = gameData.cover_uri || '';
+        let remoteCoverUrl = gameData.remote_cover_url || '';
 
-        // Se o jogo veio do catálogo (rawg_id) mas a URL da capa ainda não foi obtida, consulta os detalhes
-        if (!coverUriLocal && !urlRemota && dadosJogo.rawg_id) {
+        if (!localCoverUri && !remoteCoverUrl && gameData.rawg_id) {
           try {
-            const detalhes = await buscarDetalhesJogoNaRawg(dadosJogo.rawg_id);
-            if (detalhes?.background_image) {
-              urlRemota = detalhes.background_image;
+            const details = await fetchGameDetailsFromApi(gameData.rawg_id);
+            if (details?.background_image) {
+              remoteCoverUrl = details.background_image;
             }
           } catch (apiError) {
-            console.warn('[BacklogContext] Aviso ao obter URL da capa:', apiError);
+            console.warn('[BacklogContext] Could not fetch cover URL:', apiError);
           }
         }
 
-        // Faz o download da imagem para o armazenamento local (expo-file-system)
-        if (!coverUriLocal && urlRemota) {
-          coverUriLocal = await salvarCapaLocal(
-            urlRemota,
-            dadosJogo.rawg_id || Date.now()
+        if (!localCoverUri && remoteCoverUrl) {
+          localCoverUri = await saveLocalCover(
+            remoteCoverUrl,
+            gameData.rawg_id || Date.now()
           );
         }
 
-        const novoId = await inserirJogoBacklog({
-          rawg_id: dadosJogo.rawg_id,
-          title: dadosJogo.title,
-          status: dadosJogo.status,
-          rating: dadosJogo.rating,
-          playtime: dadosJogo.playtime,
-          achievements: dadosJogo.achievements || 0,
-          review_text: dadosJogo.review_text,
-          cover_uri: coverUriLocal,
-          release_year: dadosJogo.release_year,
+        const insertedId = await insertBacklogGame({
+          rawg_id: gameData.rawg_id,
+          title: gameData.title,
+          status: gameData.status,
+          rating: gameData.rating,
+          playtime: gameData.playtime,
+          achievements: gameData.achievements || 0,
+          review_text: gameData.review_text,
+          cover_uri: localCoverUri,
+          release_year: gameData.release_year,
         });
 
-        await carregarBacklog();
-        return { sucesso: true, id: novoId };
-      } catch (e) {
-        console.error('[BacklogContext] Erro ao inserir jogo:', e);
-        const mensagem = e.message || 'Não foi possível salvar a avaliação no banco local.';
-        setErro(mensagem);
-        throw new Error(mensagem);
+        await loadBacklog();
+        return { success: true, id: insertedId };
+      } catch (err) {
+        console.error('[BacklogContext] Failed to insert game:', err);
+        const message = err.message || 'Não foi possível salvar a avaliação no banco local.';
+        setError(message);
+        throw new Error(message);
       } finally {
-        setSalvando(false);
+        setIsSaving(false);
       }
     },
-    [carregarBacklog]
+    [loadBacklog]
   );
 
-  /**
-   * UPDATE: Atualiza os dados de uma avaliação existente no SQLite,
-   * preservando ou atualizando a URI local da capa.
-   */
-  const editarJogo = useCallback(
-    async (id, dadosJogo) => {
-      setSalvando(true);
-      setErro('');
+  const updateGame = useCallback(
+    async (id, gameData) => {
+      setIsSaving(true);
+      setError('');
 
       try {
-        let coverUriLocal = dadosJogo.cover_uri || '';
+        let localCoverUri = gameData.cover_uri || '';
 
-        if (!coverUriLocal && dadosJogo.remote_cover_url) {
-          coverUriLocal = await salvarCapaLocal(
-            dadosJogo.remote_cover_url,
-            dadosJogo.rawg_id || id
+        if (!localCoverUri && gameData.remote_cover_url) {
+          localCoverUri = await saveLocalCover(
+            gameData.remote_cover_url,
+            gameData.rawg_id || id
           );
         }
 
-        await atualizarJogoBacklog(id, {
-          title: dadosJogo.title,
-          status: dadosJogo.status,
-          rating: dadosJogo.rating,
-          playtime: dadosJogo.playtime,
-          achievements: dadosJogo.achievements || 0,
-          review_text: dadosJogo.review_text,
-          cover_uri: coverUriLocal,
-          release_year: dadosJogo.release_year,
+        await updateBacklogGame(id, {
+          title: gameData.title,
+          status: gameData.status,
+          rating: gameData.rating,
+          playtime: gameData.playtime,
+          achievements: gameData.achievements || 0,
+          review_text: gameData.review_text,
+          cover_uri: localCoverUri,
+          release_year: gameData.release_year,
         });
 
-        await carregarBacklog();
-        return { sucesso: true };
-      } catch (e) {
-        console.error('[BacklogContext] Erro ao atualizar jogo:', e);
-        const mensagem = e.message || 'Não foi possível atualizar a avaliação.';
-        setErro(mensagem);
-        throw new Error(mensagem);
+        await loadBacklog();
+        return { success: true };
+      } catch (err) {
+        console.error('[BacklogContext] Failed to update game:', err);
+        const message = err.message || 'Não foi possível atualizar a avaliação.';
+        setError(message);
+        throw new Error(message);
       } finally {
-        setSalvando(false);
+        setIsSaving(false);
       }
     },
-    [carregarBacklog]
+    [loadBacklog]
   );
 
-  /**
-   * DELETE: Remove a avaliação do SQLite e limpa o arquivo de capa local correspondente.
-   */
-  const excluirJogo = useCallback(
+  const removeGame = useCallback(
     async (id, coverUri = '') => {
-      setSalvando(true);
-      setErro('');
+      setIsSaving(true);
+      setError('');
 
       try {
         if (coverUri && coverUri.startsWith('file://')) {
-          await removerCapaLocal(coverUri);
+          await deleteLocalCover(coverUri);
         }
 
-        await deletarJogoBacklog(id);
-        await carregarBacklog();
-        return { sucesso: true };
-      } catch (e) {
-        console.error('[BacklogContext] Erro ao excluir jogo:', e);
-        const mensagem = e.message || 'Não foi possível excluir a avaliação.';
-        setErro(mensagem);
-        throw new Error(mensagem);
+        await deleteBacklogGame(id);
+        await loadBacklog();
+        return { success: true };
+      } catch (err) {
+        console.error('[BacklogContext] Failed to delete game:', err);
+        const message = err.message || 'Não foi possível excluir a avaliação.';
+        setError(message);
+        throw new Error(message);
       } finally {
-        setSalvando(false);
+        setIsSaving(false);
       }
     },
-    [carregarBacklog]
+    [loadBacklog]
   );
 
   return (
     <BacklogContext.Provider
       value={{
-        jogos,
-        carregando,
-        salvando,
-        erro,
-        carregarBacklog,
-        adicionarJogo,
-        editarJogo,
-        excluirJogo,
-        obterPreviewCapaCatalogo,
-        baixarESalvarCapaLocal,
+        games,
+        isLoading,
+        isSaving,
+        error,
+        loadBacklog,
+        addGame,
+        updateGame,
+        removeGame,
+        fetchCatalogCoverPreview,
+        downloadAndSaveLocalCover,
       }}
     >
       {children}
@@ -229,9 +209,9 @@ export const BacklogProvider = ({ children }) => {
 };
 
 export function useBacklog() {
-  const ctx = useContext(BacklogContext);
-  if (!ctx) {
-    throw new Error('useBacklog precisa ser utilizado dentro de <BacklogProvider>.');
+  const context = useContext(BacklogContext);
+  if (!context) {
+    throw new Error('useBacklog must be used within a <BacklogProvider>.');
   }
-  return ctx;
+  return context;
 }

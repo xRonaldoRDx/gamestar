@@ -8,19 +8,18 @@ import { useBacklog } from '../contexts/BacklogContext';
 import { useTheme } from '../theme/ThemeProvider';
 
 export default function HomeScreen({ navigation }) {
-  const { jogos, carregando, erro, carregarBacklog } = useBacklog();
+  const { games, isLoading, error, loadBacklog } = useBacklog();
   const { colors, spacing, radius } = useTheme();
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      carregarBacklog();
+      loadBacklog();
     });
     return unsubscribe;
-  }, [navigation, carregarBacklog]);
+  }, [navigation, loadBacklog]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Barra de Topo */}
       <View
         style={[
           styles.headerBanner,
@@ -36,9 +35,9 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.headerTextGroup}>
           <AppText variant="title">Gamestar Backlog</AppText>
           <AppText variant="caption" tone="muted">
-            {jogos.length === 1
+            {games.length === 1
               ? '1 jogo no acervo'
-              : `${jogos.length} jogos no acervo`}
+              : `${games.length} jogos no acervo`}
           </AppText>
         </View>
 
@@ -48,8 +47,7 @@ export default function HomeScreen({ navigation }) {
         />
       </View>
 
-      {/* Estado 1: Loading */}
-      {carregando ? (
+      {isLoading ? (
         <View style={[styles.centerBox, { padding: spacing.xl, gap: spacing.sm }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <AppText variant="body" tone="muted">
@@ -58,8 +56,7 @@ export default function HomeScreen({ navigation }) {
         </View>
       ) : null}
 
-      {/* Estado 2: Erro */}
-      {!carregando && erro ? (
+      {!isLoading && error ? (
         <View
           style={[
             styles.errorBox,
@@ -76,20 +73,19 @@ export default function HomeScreen({ navigation }) {
           <AppText variant="subtitle" tone="danger">
             Erro ao carregar o Backlog
           </AppText>
-          <AppText variant="body">{erro}</AppText>
+          <AppText variant="body">{error}</AppText>
           <Button
             label="Tentar Novamente"
             variant="secondary"
-            onPress={carregarBacklog}
+            onPress={loadBacklog}
             style={styles.retryButton}
           />
         </View>
       ) : null}
 
-      {/* Estado 3: Sucesso com FlatList */}
-      {!carregando && !erro ? (
+      {!isLoading && !error ? (
         <FlatList
-          data={jogos}
+          data={games}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{
             padding: spacing.md,

@@ -1,11 +1,5 @@
 import { Platform } from 'react-native';
 
-/**
- * DESIGN TOKENS - GAMESTAR
- * Tema escuro com fundos azul-acinzentados (#171A21, #1B2838),
- * barras de conteúdo (#2A475E) e destaques em azul vibrante (#66C0F4).
- */
-
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -36,37 +30,37 @@ export const typography = {
   },
 };
 
-const palette = {
-  deepDark: '#171A21',         // Fundo principal escuro
-  navySurface: '#1B2838',      // Superfície de cabeçalho / container
-  slateBar: '#2A475E',         // Barras horizontais e cartões médios
-  slatePressed: '#345774',     // Estado pressionado / contraste
-  slateBorder: '#1E3547',      // Bordas sutis
-  highlightBlue: '#66C0F4',    // Cor primária de destaque
-  highlightBlueDark: '#419AC9',// Primária ativa / pressionada
-  textLight: '#F5F7FA',        // Texto principal
-  textMuted: '#C7D5E0',        // Texto secundário e metadados
-  accentGreen: '#A4D007',      // Destaque de sucesso / concluído
-  accentAmber: '#F2A93B',      // Destaque de backlog / pendente
-  accentRed: '#E5484D',        // Destaque de drop / erro
+const PALETTE = {
+  DEEP_DARK: '#171A21',
+  NAVY_SURFACE: '#1B2838',
+  SLATE_BAR: '#2A475E',
+  SLATE_PRESSED: '#345774',
+  SLATE_BORDER: '#1E3547',
+  HIGHLIGHT_BLUE: '#66C0F4',
+  HIGHLIGHT_BLUE_DARK: '#419AC9',
+  TEXT_LIGHT: '#F5F7FA',
+  TEXT_MUTED: '#C7D5E0',
+  ACCENT_GREEN: '#A4D007',
+  ACCENT_AMBER: '#F2A93B',
+  ACCENT_RED: '#E5484D',
 };
 
 export const darkColors = {
-  background: palette.deepDark,
-  surface: palette.navySurface,
-  surfaceAlt: palette.slatePressed,
-  card: palette.slateBar,
-  cardPressed: palette.slatePressed,
-  border: palette.slateBorder,
-  text: palette.textLight,
-  textMuted: palette.textMuted,
-  textInverse: palette.deepDark,
-  primary: palette.highlightBlue,
-  primaryPressed: palette.highlightBlueDark,
-  accent: palette.highlightBlue,
-  success: palette.accentGreen,
-  warning: palette.accentAmber,
-  danger: palette.accentRed,
+  background: PALETTE.DEEP_DARK,
+  surface: PALETTE.NAVY_SURFACE,
+  surfaceAlt: PALETTE.SLATE_PRESSED,
+  card: PALETTE.SLATE_BAR,
+  cardPressed: PALETTE.SLATE_PRESSED,
+  border: PALETTE.SLATE_BORDER,
+  text: PALETTE.TEXT_LIGHT,
+  textMuted: PALETTE.TEXT_MUTED,
+  textInverse: PALETTE.DEEP_DARK,
+  primary: PALETTE.HIGHLIGHT_BLUE,
+  primaryPressed: PALETTE.HIGHLIGHT_BLUE_DARK,
+  accent: PALETTE.HIGHLIGHT_BLUE,
+  success: PALETTE.ACCENT_GREEN,
+  warning: PALETTE.ACCENT_AMBER,
+  danger: PALETTE.ACCENT_RED,
 };
 
 export const lightColors = {

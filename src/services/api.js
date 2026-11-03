@@ -1,43 +1,33 @@
 import NetInfo from '@react-native-community/netinfo';
-import { formatarJogoCatalogo } from './mockGames';
+import { mapCatalogGame } from './mockGames';
 
 const BASE_URL = 'https://api.rawg.io/api';
-const REQUEST_TIMEOUT_MS = 6500; // Timeout resiliente entre 5 e 8 segundos
+const REQUEST_TIMEOUT_MS = 6500;
 
-/**
- * Consome silenciosamente a chave configurada no ambiente (.env).
- * Nunca expõe detalhes de configuração para o usuário final.
- */
-function obterChaveApi() {
+function getApiKey() {
   const apiKey = process.env.EXPO_PUBLIC_RAWG_API_KEY?.trim();
 
   if (!apiKey) {
-    console.error('[API Service] Chave de API ausente na variável EXPO_PUBLIC_RAWG_API_KEY.');
+    console.error('[API Service] Missing EXPO_PUBLIC_RAWG_API_KEY environment variable.');
     throw new Error('Não foi possível conectar ao servidor de jogos no momento.');
   }
 
   return apiKey;
 }
 
-/**
- * Verifica previamente se há conectividade ativa antes de disparar requisições HTTP.
- */
-export async function verificarConexaoRede() {
+export async function ensureNetworkConnection() {
   const netState = await NetInfo.fetch();
-  const semConexao =
+  const isOffline =
     netState.isConnected === false || netState.isInternetReachable === false;
 
-  if (semConexao) {
+  if (isOffline) {
     throw new Error(
       'Sem conexão com a internet. Não foi possível conectar ao servidor de jogos.'
     );
   }
 }
 
-/**
- * Executa um fetch nativo protegido por AbortController com timeout configurável.
- */
-async function fetchComTimeout(url, timeoutMs = REQUEST_TIMEOUT_MS) {
+async function fetchWithTimeout(url, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
@@ -45,8 +35,8 @@ async function fetchComTimeout(url, timeoutMs = REQUEST_TIMEOUT_MS) {
 
   try {
     return await fetch(url, { signal: controller.signal });
-  } catch (err) {
-    if (err?.name === 'AbortError') {
+  } catch (error) {
+    if (error?.name === 'AbortError') {
       throw new Error(
         'O servidor de jogos demorou muito para responder (tempo limite esgotado).'
       );
@@ -59,73 +49,66 @@ async function fetchComTimeout(url, timeoutMs = REQUEST_TIMEOUT_MS) {
   }
 }
 
-/**
- * Busca jogos no catálogo remoto pelo nome usando NetInfo + AbortController.
- * Em caso de falha, lança o erro (throw) para a camada ViewModel.
- */
-export async function buscarJogosNaRawg(termoBusca) {
-  const queryLimpa = (termoBusca || '').trim();
-  if (!queryLimpa) {
+export async function fetchGamesFromApi(searchQuery) {
+  const trimmedQuery = (searchQuery || '').trim();
+  if (!trimmedQuery) {
     return [];
   }
 
-  await verificarConexaoRede();
+  await ensureNetworkConnection();
 
-  const apiKey = obterChaveApi();
+  const apiKey = getApiKey();
   const url = `${BASE_URL}/games?search=${encodeURIComponent(
-    queryLimpa
+    trimmedQuery
   )}&page_size=15&key=${encodeURIComponent(apiKey)}`;
 
-  const resposta = await fetchComTimeout(url, REQUEST_TIMEOUT_MS);
+  const response = await fetchWithTimeout(url, REQUEST_TIMEOUT_MS);
 
-  if (!resposta.ok) {
-    if (resposta.status === 401) {
-      console.error('[API Service] Chave não autorizada pelo provedor.');
+  if (!response.ok) {
+    if (response.status === 401) {
+      console.error('[API Service] Unauthorized API key.');
       throw new Error('Não foi possível conectar ao servidor de jogos (serviço indisponível).');
     }
     throw new Error('Não foi possível conectar ao servidor de jogos no momento.');
   }
 
-  const dados = await resposta.json();
+  const data = await response.json();
 
-  if (!dados || !Array.isArray(dados.results)) {
+  if (!data || !Array.isArray(data.results)) {
     return [];
   }
 
-  return dados.results.map(formatarJogoCatalogo);
+  return data.results.map(mapCatalogGame);
 }
 
-/**
- * Busca detalhes e URL da capa oficial de um jogo pelo ID no catálogo.
- */
-export async function buscarDetalhesJogoNaRawg(rawgId) {
+export async function fetchGameDetailsFromApi(rawgId) {
   if (!rawgId) {
     return null;
   }
 
-  await verificarConexaoRede();
+  await ensureNetworkConnection();
 
-  const apiKey = obterChaveApi();
+  const apiKey = getApiKey();
   const url = `${BASE_URL}/games/${encodeURIComponent(
     String(rawgId)
   )}?key=${encodeURIComponent(apiKey)}`;
 
-  const resposta = await fetchComTimeout(url, REQUEST_TIMEOUT_MS);
+  const response = await fetchWithTimeout(url, REQUEST_TIMEOUT_MS);
 
-  if (!resposta.ok) {
+  if (!response.ok) {
     throw new Error('Não foi possível carregar os detalhes deste jogo no momento.');
   }
 
-  const dados = await resposta.json();
+  const data = await response.json();
 
   return {
-    rawg_id: dados.id,
-    title: dados.name,
-    background_image: dados.background_image || null,
-    released: dados.released || null,
-    metacritic: dados.metacritic ?? null,
-    developers: Array.isArray(dados.developers)
-      ? dados.developers.map((d) => d.name).join(', ')
+    rawg_id: data.id,
+    title: data.name,
+    background_image: data.background_image || null,
+    released: data.released || null,
+    metacritic: data.metacritic ?? null,
+    developers: Array.isArray(data.developers)
+      ? data.developers.map((developer) => developer.name).join(', ')
       : '',
   };
 }

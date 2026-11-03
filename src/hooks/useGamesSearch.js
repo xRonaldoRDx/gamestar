@@ -1,36 +1,34 @@
 import { useCallback, useState } from 'react';
 import NetInfo from '@react-native-community/netinfo';
-import { buscarJogosNaRawg } from '../services/api';
-import { filtrarJogosMockPorNome } from '../services/mockGames';
+import { fetchGamesFromApi } from '../services/api';
+import { filterMockGamesByTitle } from '../services/mockGames';
 
 export function useGamesSearch() {
-  const [termo, setTermo] = useState('');
-  const [carregando, setCarregando] = useState(false);
-  const [dados, setDados] = useState([]);
-  const [erro, setErro] = useState('');
-  const [buscaRealizada, setBuscaRealizada] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [games, setGames] = useState([]);
+  const [error, setError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
   const [isMockMode, setIsMockMode] = useState(false);
 
-  const executarBusca = useCallback(async () => {
-    const termoLimpo = termo.trim();
-    if (!termoLimpo) {
-      setErro('Digite o nome de um jogo para pesquisar.');
+  const searchGames = useCallback(async () => {
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) {
+      setError('Digite o nome de um jogo para pesquisar.');
       return;
     }
 
-    setCarregando(true);
-    setErro('');
-    setBuscaRealizada(true);
+    setIsLoading(true);
+    setError('');
+    setHasSearched(true);
 
     try {
-      // Se o Modo Offline (Mock) estiver ativo, realiza filtro local case-insensitive pelo nome real do jogo
       if (isMockMode) {
-        const resultadosLocais = filtrarJogosMockPorNome(termoLimpo);
-        setDados(resultadosLocais);
+        const localResults = filterMockGamesByTitle(trimmedQuery);
+        setGames(localResults);
         return;
       }
 
-      // Caso contrário, verifica a internet via NetInfo e consulta a API com AbortController
       const netState = await NetInfo.fetch();
       if (netState.isConnected === false || netState.isInternetReachable === false) {
         throw new Error(
@@ -38,39 +36,33 @@ export function useGamesSearch() {
         );
       }
 
-      const resposta = await buscarJogosNaRawg(termoLimpo);
-      setDados(resposta);
-    } catch (e) {
-      setErro(
-        e.message || 'Não foi possível conectar ao servidor de jogos.'
-      );
-      setDados([]);
+      const remoteResults = await fetchGamesFromApi(trimmedQuery);
+      setGames(remoteResults);
+    } catch (err) {
+      setError(err.message || 'Não foi possível conectar ao servidor de jogos.');
+      setGames([]);
     } finally {
-      setCarregando(false);
+      setIsLoading(false);
     }
-  }, [termo, isMockMode]);
+  }, [searchQuery, isMockMode]);
 
-  /**
-   * Ativa silenciosamente o modo offline (isMockMode = true), limpa o estado de erro
-   * e mantém a lista vazia aguardando que o usuário pesquise na barra de busca.
-   */
-  const ativarModoDemonstracao = useCallback(() => {
+  const enableMockMode = useCallback(() => {
     setIsMockMode(true);
-    setErro('');
-    setCarregando(false);
-    setDados([]);
-    setBuscaRealizada(false);
+    setError('');
+    setIsLoading(false);
+    setGames([]);
+    setHasSearched(false);
   }, []);
 
   return {
-    termo,
-    setTermo,
-    carregando,
-    dados,
-    erro,
-    buscaRealizada,
+    searchQuery,
+    setSearchQuery,
+    isLoading,
+    games,
+    error,
+    hasSearched,
     isMockMode,
-    executarBusca,
-    ativarModoDemonstracao,
+    searchGames,
+    enableMockMode,
   };
 }

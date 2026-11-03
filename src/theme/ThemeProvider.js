@@ -9,14 +9,14 @@ export function ThemeProvider({ children }) {
   const [mode, setMode] = useState('system');
 
   const value = useMemo(() => {
-    const effective = mode === 'system' ? systemScheme ?? 'dark' : mode;
-    const isDark = effective === 'dark';
+    const effectiveScheme = mode === 'system' ? systemScheme ?? 'dark' : mode;
+    const isDark = effectiveScheme === 'dark';
 
     return {
       mode,
       setMode,
       isDark,
-      scheme: effective,
+      scheme: effectiveScheme,
       colors: isDark ? darkColors : lightColors,
       spacing,
       radius,
@@ -29,9 +29,9 @@ export function ThemeProvider({ children }) {
 }
 
 export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    throw new Error('useTheme precisa estar dentro de <ThemeProvider>.');
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a <ThemeProvider>.');
   }
-  return ctx;
+  return context;
 }

@@ -4,12 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AppText from './AppText';
 import { useTheme } from '../theme/ThemeProvider';
 
-const STARS = [1, 2, 3, 4, 5];
+const STAR_INDICES = [1, 2, 3, 4, 5];
 
-/**
- * Componente interativo de avaliação (0.0 a 5.0 em passos de 0.5) via toque e arraste (Swipe to Rate).
- * Construído manualmente com PanResponder nativo e @expo/vector-icons, sem bibliotecas externas.
- */
 export default function StarRatingInput({
   value = 0,
   onChange,
@@ -17,7 +13,7 @@ export default function StarRatingInput({
   label = 'Sua Nota',
 }) {
   const { colors, spacing, radius } = useTheme();
-  const numericValue = Math.max(0, Math.min(5, Number(value) || 0));
+  const clampedValue = Math.max(0, Math.min(5, Number(value) || 0));
 
   const trackWidthRef = useRef(0);
   const startXRef = useRef(0);
@@ -29,20 +25,19 @@ export default function StarRatingInput({
     disabledRef.current = disabled;
   }, [onChange, disabled]);
 
-  function calcularNotaPorPosicaoX(posX) {
+  // Maps horizontal touch coordinate [0..trackWidth] into discrete 0.5 star steps [0.0..5.0]
+  function updateRatingFromTouchX(touchX) {
     if (disabledRef.current || !onChangeRef.current) return;
 
-    const largura = trackWidthRef.current;
-    if (!largura || largura <= 0) return;
+    const trackWidth = trackWidthRef.current;
+    if (!trackWidth || trackWidth <= 0) return;
 
-    const xLimitado = Math.max(0, Math.min(largura, posX));
-    const proporcao = xLimitado / largura;
+    const clampedX = Math.max(0, Math.min(trackWidth, touchX));
+    const ratio = clampedX / trackWidth;
+    const steppedRating = Math.round(ratio * 5 * 2) / 2;
+    const finalRating = Math.max(0, Math.min(5, steppedRating));
 
-    // Converte a proporção horizontal (0..1) para a escala 0..5 em incrementos de 0.5
-    const notaCalculada = Math.round(proporcao * 5 * 2) / 2;
-    const notaFinal = Math.max(0, Math.min(5, notaCalculada));
-
-    onChangeRef.current(notaFinal);
+    onChangeRef.current(finalRating);
   }
 
   const panResponder = useRef(
@@ -53,23 +48,23 @@ export default function StarRatingInput({
       onMoveShouldSetPanResponderCapture: () => !disabledRef.current,
       onPanResponderTerminationRequest: () => false,
       onShouldBlockNativeResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        const touchX = evt.nativeEvent.locationX;
+      onPanResponderGrant: (event) => {
+        const touchX = event.nativeEvent.locationX;
         startXRef.current = touchX;
-        calcularNotaPorPosicaoX(touchX);
+        updateRatingFromTouchX(touchX);
       },
-      onPanResponderMove: (_evt, gestureState) => {
+      onPanResponderMove: (_event, gestureState) => {
         const currentX = startXRef.current + gestureState.dx;
-        calcularNotaPorPosicaoX(currentX);
+        updateRatingFromTouchX(currentX);
       },
     })
   ).current;
 
-  function obterIconeEstrela(starNumber) {
-    if (numericValue >= starNumber) {
+  function getStarIconName(starNumber) {
+    if (clampedValue >= starNumber) {
       return 'star';
     }
-    if (numericValue >= starNumber - 0.5) {
+    if (clampedValue >= starNumber - 0.5) {
       return 'star-half';
     }
     return 'star-outline';
@@ -77,7 +72,6 @@ export default function StarRatingInput({
 
   return (
     <View style={{ gap: spacing.xs }}>
-      {/* Cabeçalho da seção com título à esquerda e nota visível à direita (sem overflow) */}
       <View style={styles.sectionHeaderRow}>
         <AppText variant="subtitle" numberOfLines={1} style={styles.sectionTitle}>
           {label}
@@ -101,12 +95,11 @@ export default function StarRatingInput({
             numberOfLines={1}
             style={styles.scoreText}
           >
-            {numericValue.toFixed(1)} / 5.0
+            {clampedValue.toFixed(1)} / 5.0
           </AppText>
         </View>
       </View>
 
-      {/* Container interativo das estrelas com PanResponder */}
       <View
         style={[
           styles.container,
@@ -127,14 +120,14 @@ export default function StarRatingInput({
           {...panResponder.panHandlers}
           accessible
           accessibilityRole="adjustable"
-          accessibilityLabel={`Nota atual ${numericValue.toFixed(1)} de 5 estrelas. Toque ou arraste horizontalmente para alterar.`}
+          accessibilityLabel={`Nota atual ${clampedValue.toFixed(1)} de 5 estrelas. Toque ou arraste horizontalmente para alterar.`}
           style={styles.starsTrack}
         >
-          {/* pointerEvents="none" garante que locationX seja sempre relativo à trilha inteira */}
+          {/* pointerEvents="none" prevents child icons from hijacking locationX relative coordinates */}
           <View pointerEvents="none" style={styles.starsRow}>
-            {STARS.map((starNumber) => {
-              const iconName = obterIconeEstrela(starNumber);
-              const isFilled = numericValue >= starNumber - 0.5;
+            {STAR_INDICES.map((starNumber) => {
+              const iconName = getStarIconName(starNumber);
+              const isFilled = clampedValue >= starNumber - 0.5;
 
               return (
                 <View key={starNumber} style={styles.starWrapper}>

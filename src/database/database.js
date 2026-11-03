@@ -11,12 +11,10 @@ export const getDatabase = async () => {
   return dbInstance;
 };
 
-/**
- * Inicializa a tabela Backlog no SQLite usando a API moderna assíncrona (Expo SDK 58).
- */
-export const initDB = async () => {
+export const initDatabase = async () => {
   const db = await getDatabase();
 
+  // WAL mode enables concurrent reads and faster transactional writes on mobile storage
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
 
@@ -36,30 +34,28 @@ export const initDB = async () => {
     );
   `);
 
-  // Migração segura de colunas para bancos criados em fases anteriores
-  const colunas = await db.getAllAsync('PRAGMA table_info(Backlog);');
-  const nomesColunas = colunas.map((col) => col.name);
+  // Idempotent schema and data migration for databases created in earlier phases
+  const columns = await db.getAllAsync('PRAGMA table_info(Backlog);');
+  const columnNames = columns.map((column) => column.name);
 
-  if (!nomesColunas.includes('cover_uri')) {
+  if (!columnNames.includes('cover_uri')) {
     await db.execAsync("ALTER TABLE Backlog ADD COLUMN cover_uri TEXT DEFAULT '';");
   }
 
-  if (!nomesColunas.includes('release_year')) {
+  if (!columnNames.includes('release_year')) {
     await db.execAsync("ALTER TABLE Backlog ADD COLUMN release_year TEXT DEFAULT '';");
   }
 
-  // Normaliza registros de fases anteriores para a escala 0..5 e status em português
   await db.runAsync('UPDATE Backlog SET rating = ROUND(rating / 2.0, 1) WHERE rating > ?', [5]);
   await db.runAsync('UPDATE Backlog SET status = ? WHERE status = ?', ['Jogando', 'Playing']);
   await db.runAsync('UPDATE Backlog SET status = ? WHERE status = ?', ['Zerado', 'Completed']);
   await db.runAsync('UPDATE Backlog SET status = ? WHERE status = ?', ['Lista de Desejos', 'Backlog']);
   await db.runAsync('UPDATE Backlog SET status = ? WHERE status = ?', ['Abandonado', 'Dropped']);
 
-  // Carga inicial caso a tabela esteja vazia
   const firstRow = await db.getFirstAsync('SELECT count(*) as count FROM Backlog');
 
   if (firstRow && firstRow.count === 0) {
-    const agora = new Date().toISOString();
+    const nowIso = new Date().toISOString();
 
     await db.runAsync(
       `INSERT INTO Backlog (rawg_id, title, status, rating, playtime, achievements, review_text, cover_uri, release_year, added_at, updated_at)
@@ -74,8 +70,8 @@ export const initDB = async () => {
         'Narrativa impecável e missões secundárias memoráveis.',
         '',
         '2015',
-        agora,
-        agora,
+        nowIso,
+        nowIso,
       ]
     );
 
@@ -92,36 +88,26 @@ export const initDB = async () => {
         'Design de puzzles genial do início ao fim.',
         '',
         '2011',
-        agora,
-        agora,
+        nowIso,
+        nowIso,
       ]
     );
   }
 };
 
-/**
- * READ (All): Lista todos os jogos do Backlog ordenados pela última atualização.
- */
-export const listarJogosBacklog = async () => {
+export const getAllBacklogGames = async () => {
   const db = await getDatabase();
   return await db.getAllAsync(
     'SELECT * FROM Backlog ORDER BY datetime(updated_at) DESC, id DESC'
   );
 };
 
-/**
- * READ (One): Busca um registro específico pelo ID com bind variable (?).
- */
-export const buscarJogoBacklogPorId = async (id) => {
+export const getBacklogGameById = async (id) => {
   const db = await getDatabase();
-  return await db.getFirstAsync('SELECT * FROM Backlog WHERE id = ?', [id]);
+  return await db.getFirstAsync('SELECT * FROM Backlog WHERE id = ?', [Number(id)]);
 };
 
-/**
- * CREATE: Insere uma nova avaliação na tabela Backlog usando runAsync e bind variables (?).
- * @returns {Promise<number>} ID do registro inserido (lastInsertRowId)
- */
-export const inserirJogoBacklog = async ({
+export const insertBacklogGame = async ({
   rawg_id = null,
   title,
   status = 'Lista de Desejos',
@@ -133,9 +119,9 @@ export const inserirJogoBacklog = async ({
   release_year = '',
 }) => {
   const db = await getDatabase();
-  const agora = new Date().toISOString();
+  const nowIso = new Date().toISOString();
 
-  const resultado = await db.runAsync(
+  const result = await db.runAsync(
     `INSERT INTO Backlog (
       rawg_id,
       title,
@@ -159,18 +145,15 @@ export const inserirJogoBacklog = async ({
       String(review_text || '').trim(),
       String(cover_uri || ''),
       String(release_year || '').trim(),
-      agora,
-      agora,
+      nowIso,
+      nowIso,
     ]
   );
 
-  return resultado.lastInsertRowId;
+  return result.lastInsertRowId;
 };
 
-/**
- * UPDATE: Atualiza os dados de uma avaliação existente usando runAsync e bind variables (?).
- */
-export const atualizarJogoBacklog = async (
+export const updateBacklogGame = async (
   id,
   {
     title,
@@ -184,7 +167,7 @@ export const atualizarJogoBacklog = async (
   }
 ) => {
   const db = await getDatabase();
-  const agora = new Date().toISOString();
+  const nowIso = new Date().toISOString();
 
   await db.runAsync(
     `UPDATE Backlog
@@ -207,28 +190,22 @@ export const atualizarJogoBacklog = async (
       String(review_text || '').trim(),
       String(cover_uri || ''),
       String(release_year || '').trim(),
-      agora,
+      nowIso,
       Number(id),
     ]
   );
 };
 
-/**
- * DELETE: Remove uma avaliação da tabela Backlog usando runAsync e bind variable (?).
- */
-export const deletarJogoBacklog = async (id) => {
+export const deleteBacklogGame = async (id) => {
   const db = await getDatabase();
   await db.runAsync('DELETE FROM Backlog WHERE id = ?', [Number(id)]);
 };
 
-/**
- * Atualiza exclusivamente o caminho local (file://) da capa salva via expo-file-system.
- */
-export const atualizarCapaLocalBacklog = async (id, coverUri) => {
+export const updateBacklogLocalCover = async (id, coverUri) => {
   const db = await getDatabase();
-  const agora = new Date().toISOString();
+  const nowIso = new Date().toISOString();
   await db.runAsync(
     'UPDATE Backlog SET cover_uri = ?, updated_at = ? WHERE id = ?',
-    [coverUri || '', agora, Number(id)]
+    [coverUri || '', nowIso, Number(id)]
   );
 };

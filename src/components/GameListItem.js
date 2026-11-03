@@ -4,7 +4,7 @@ import AppText from './AppText';
 import Badge from './Badge';
 import { useTheme } from '../theme/ThemeProvider';
 
-const STATUS_TONE = {
+const STATUS_TONE_MAP = {
   Jogando: 'primary',
   Zerado: 'success',
   Pausado: 'warning',
@@ -18,9 +18,9 @@ const STATUS_TONE = {
 
 export default function GameListItem({ item, onPress }) {
   const { colors, spacing, radius, shadow } = useTheme();
-  const badgeTone = STATUS_TONE[item.status] || 'warning';
+  const badgeTone = STATUS_TONE_MAP[item.status] || 'warning';
 
-  // Leitura EXCLUSIVA de URI local para não consumir dados de rede na lista
+  // Enforces local file:// URIs only so FlatList scrolling never triggers network requests
   const hasLocalImage = Boolean(item.cover_uri && item.cover_uri.startsWith('file://'));
 
   return (
@@ -49,7 +49,6 @@ export default function GameListItem({ item, onPress }) {
           },
         ]}
       >
-        {/* Lado Esquerdo: Miniatura da Capa (Exclusivamente Local ou Placeholder Estético) */}
         <View
           style={[
             styles.coverContainer,
@@ -78,7 +77,6 @@ export default function GameListItem({ item, onPress }) {
           )}
         </View>
 
-        {/* Lado Direito: Nome, Ano, Nota e Status */}
         <View style={[styles.infoContainer, { gap: spacing.xs }]}>
           <View style={styles.topRow}>
             <AppText

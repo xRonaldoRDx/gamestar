@@ -29,18 +29,17 @@ const STATUS_OPTIONS = [
 export default function GameFormScreen({ route, navigation }) {
   const { colors, spacing, radius, shadow } = useTheme();
   const {
-    adicionarJogo,
-    editarJogo,
-    excluirJogo,
-    obterPreviewCapaCatalogo,
-    salvando,
+    addGame,
+    updateGame,
+    removeGame,
+    fetchCatalogCoverPreview,
+    isSaving,
   } = useBacklog();
 
   const prefillGame = route?.params?.prefillGame || null;
   const existingGame = route?.params?.game || null;
   const isEditing = Boolean(existingGame?.id);
 
-  // Estados dos campos do formulário
   const [title, setTitle] = useState(
     existingGame?.title || prefillGame?.title || ''
   );
@@ -65,13 +64,12 @@ export default function GameFormScreen({ route, navigation }) {
   );
   const [reviewText, setReviewText] = useState(existingGame?.review_text || '');
 
-  // Estados de pré-visualização da capa (3 estados: Loading, Sucesso, Erro)
   const [remoteCoverUrl, setRemoteCoverUrl] = useState(
     prefillGame?.remote_cover_url || ''
   );
-  const [carregandoCapa, setCarregandoCapa] = useState(false);
-  const [erroCapa, setErroCapa] = useState('');
-  const [erroFormulario, setErroFormulario] = useState('');
+  const [isLoadingCover, setIsLoadingCover] = useState(false);
+  const [coverError, setCoverError] = useState('');
+  const [formError, setFormError] = useState('');
 
   const rawgId = existingGame?.rawg_id || prefillGame?.rawg_id || null;
   const localCoverUri = existingGame?.cover_uri || '';
@@ -82,63 +80,62 @@ export default function GameFormScreen({ route, navigation }) {
     });
   }, [isEditing, navigation]);
 
-  // Ao selecionar um jogo da busca, busca a capa do catálogo para confirmação visual
   useEffect(() => {
-    let ativo = true;
+    let isMounted = true;
 
-    async function carregarPreviewCapa() {
+    async function loadCoverPreview() {
       if (localCoverUri || remoteCoverUrl || !rawgId) {
         return;
       }
 
-      setCarregandoCapa(true);
-      setErroCapa('');
+      setIsLoadingCover(true);
+      setCoverError('');
 
       try {
-        const detalhes = await obterPreviewCapaCatalogo(rawgId);
-        if (!ativo) return;
+        const details = await fetchCatalogCoverPreview(rawgId);
+        if (!isMounted) return;
 
-        if (detalhes?.background_image) {
-          setRemoteCoverUrl(detalhes.background_image);
+        if (details?.background_image) {
+          setRemoteCoverUrl(details.background_image);
         }
-        if (!releaseYear && detalhes?.released) {
-          setReleaseYear(String(detalhes.released).slice(0, 4));
+        if (!releaseYear && details?.released) {
+          setReleaseYear(String(details.released).slice(0, 4));
         }
-      } catch (e) {
-        if (ativo) {
-          setErroCapa('Prévia da capa indisponível no momento.');
+      } catch (_err) {
+        if (isMounted) {
+          setCoverError('Prévia da capa indisponível no momento.');
         }
       } finally {
-        if (ativo) {
-          setCarregandoCapa(false);
+        if (isMounted) {
+          setIsLoadingCover(false);
         }
       }
     }
 
-    carregarPreviewCapa();
+    loadCoverPreview();
 
     return () => {
-      ativo = false;
+      isMounted = false;
     };
-  }, [rawgId, localCoverUri, remoteCoverUrl, releaseYear, obterPreviewCapaCatalogo]);
+  }, [rawgId, localCoverUri, remoteCoverUrl, releaseYear, fetchCatalogCoverPreview]);
 
-  function handlePlaytimeChange(texto) {
-    const apenasDigitos = texto.replace(/[^0-9]/g, '');
-    setPlaytime(apenasDigitos);
+  function handlePlaytimeChange(text) {
+    const digitsOnly = text.replace(/[^0-9]/g, '');
+    setPlaytime(digitsOnly);
   }
 
-  async function handleSalvar() {
-    const tituloLimpo = title.trim();
-    if (!tituloLimpo) {
-      setErroFormulario('Informe o título do jogo antes de salvar.');
+  async function handleSave() {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setFormError('Informe o título do jogo antes de salvar.');
       return;
     }
 
-    setErroFormulario('');
+    setFormError('');
 
     const payload = {
       rawg_id: rawgId,
-      title: tituloLimpo,
+      title: trimmedTitle,
       status,
       rating: Number(rating) || 0,
       playtime: parseInt(playtime, 10) || 0,
@@ -150,20 +147,20 @@ export default function GameFormScreen({ route, navigation }) {
 
     try {
       if (isEditing) {
-        await editarJogo(existingGame.id, payload);
+        await updateGame(existingGame.id, payload);
       } else {
-        await adicionarJogo(payload);
+        await addGame(payload);
       }
 
       navigation.navigate('Home');
-    } catch (e) {
-      setErroFormulario(
-        e.message || 'Ocorreu um erro ao salvar os dados no banco local.'
+    } catch (err) {
+      setFormError(
+        err.message || 'Ocorreu um erro ao salvar os dados no banco local.'
       );
     }
   }
 
-  function handleConfirmarExclusao() {
+  function handleConfirmDelete() {
     if (!isEditing) return;
 
     Alert.alert(
@@ -176,11 +173,11 @@ export default function GameFormScreen({ route, navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await excluirJogo(existingGame.id, existingGame.cover_uri);
+              await removeGame(existingGame.id, existingGame.cover_uri);
               navigation.navigate('Home');
-            } catch (e) {
-              setErroFormulario(
-                e.message || 'Não foi possível excluir esta avaliação.'
+            } catch (err) {
+              setFormError(
+                err.message || 'Não foi possível excluir esta avaliação.'
               );
             }
           },
@@ -189,7 +186,7 @@ export default function GameFormScreen({ route, navigation }) {
     );
   }
 
-  const uriCapaExibida = localCoverUri || remoteCoverUrl;
+  const displayedCoverUri = localCoverUri || remoteCoverUrl;
 
   return (
     <KeyboardAvoidingView
@@ -205,7 +202,6 @@ export default function GameFormScreen({ route, navigation }) {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Cartão de Cabeçalho e Confirmação Visual da Capa */}
         <View
           style={[
             styles.coverCard,
@@ -229,11 +225,11 @@ export default function GameFormScreen({ route, navigation }) {
               },
             ]}
           >
-            {carregandoCapa ? (
+            {isLoadingCover ? (
               <ActivityIndicator size="small" color={colors.primary} />
-            ) : uriCapaExibida ? (
+            ) : displayedCoverUri ? (
               <Image
-                source={{ uri: uriCapaExibida }}
+                source={{ uri: displayedCoverUri }}
                 style={styles.coverThumbImage}
                 resizeMode="cover"
               />
@@ -243,7 +239,7 @@ export default function GameFormScreen({ route, navigation }) {
                   CAPA
                 </AppText>
                 <AppText variant="caption" tone="muted" numberOfLines={1}>
-                  {erroCapa ? 'OFFLINE' : 'MANUAL'}
+                  {coverError ? 'OFFLINE' : 'MANUAL'}
                 </AppText>
               </View>
             )}
@@ -270,13 +266,12 @@ export default function GameFormScreen({ route, navigation }) {
                 ? 'A imagem da capa já está armazenada no dispositivo.'
                 : remoteCoverUrl
                 ? 'Ao salvar, a capa será gravada localmente para leitura offline.'
-                : erroCapa || 'Preencha os dados da sua avaliação abaixo.'}
+                : coverError || 'Preencha os dados da sua avaliação abaixo.'}
             </AppText>
           </View>
         </View>
 
-        {/* Mensagem de Erro (se houver) */}
-        {erroFormulario ? (
+        {formError ? (
           <View
             style={[
               styles.errorBanner,
@@ -291,11 +286,10 @@ export default function GameFormScreen({ route, navigation }) {
             <AppText variant="subtitle" tone="danger">
               Atenção
             </AppText>
-            <AppText variant="body">{erroFormulario}</AppText>
+            <AppText variant="body">{formError}</AppText>
           </View>
         ) : null}
 
-        {/* Campo 1: Título e Ano */}
         <View style={{ gap: spacing.xs }}>
           <AppText variant="subtitle">Título do Jogo</AppText>
           <View style={[styles.rowInputs, { gap: spacing.sm }]}>
@@ -315,7 +309,7 @@ export default function GameFormScreen({ route, navigation }) {
               placeholderTextColor={colors.textMuted}
               value={title}
               onChangeText={setTitle}
-              editable={!salvando}
+              editable={!isSaving}
             />
 
             <TextInput
@@ -333,45 +327,44 @@ export default function GameFormScreen({ route, navigation }) {
               placeholder="Ano"
               placeholderTextColor={colors.textMuted}
               value={releaseYear}
-              onChangeText={(txt) => setReleaseYear(txt.replace(/[^0-9]/g, '').slice(0, 4))}
+              onChangeText={(text) => setReleaseYear(text.replace(/[^0-9]/g, '').slice(0, 4))}
               keyboardType="numeric"
               maxLength={4}
-              editable={!salvando}
+              editable={!isSaving}
             />
           </View>
         </View>
 
-        {/* Campo 2: Seletor de Status */}
         <View style={{ gap: spacing.xs }}>
           <AppText variant="subtitle">Status no Backlog</AppText>
           <View style={[styles.statusGrid, { gap: spacing.sm }]}>
-            {STATUS_OPTIONS.map((opcao) => {
-              const ativo = status === opcao;
+            {STATUS_OPTIONS.map((option) => {
+              const isSelected = status === option;
               return (
                 <View
-                  key={opcao}
+                  key={option}
                   style={[
                     styles.statusChipWrapper,
                     {
                       borderRadius: radius.md,
-                      borderColor: ativo ? colors.primary : colors.border,
+                      borderColor: isSelected ? colors.primary : colors.border,
                     },
                   ]}
                 >
                   <Pressable
-                    onPress={() => setStatus(opcao)}
-                    disabled={salvando}
+                    onPress={() => setStatus(option)}
+                    disabled={isSaving}
                     hitSlop={6}
                     android_ripple={{ color: 'rgba(102, 192, 244, 0.2)' }}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: ativo }}
-                    accessibilityLabel={`Status ${opcao}`}
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={`Status ${option}`}
                     style={({ pressed }) => [
                       styles.statusChip,
                       {
                         paddingHorizontal: spacing.md,
                         paddingVertical: spacing.sm + 2,
-                        backgroundColor: ativo
+                        backgroundColor: isSelected
                           ? colors.primary + '28'
                           : pressed
                           ? colors.cardPressed
@@ -383,11 +376,11 @@ export default function GameFormScreen({ route, navigation }) {
                       variant="body"
                       numberOfLines={1}
                       style={{
-                        color: ativo ? colors.primary : colors.text,
-                        fontWeight: ativo ? '700' : '500',
+                        color: isSelected ? colors.primary : colors.text,
+                        fontWeight: isSelected ? '700' : '500',
                       }}
                     >
-                      {opcao}
+                      {option}
                     </AppText>
                   </Pressable>
                 </View>
@@ -396,15 +389,13 @@ export default function GameFormScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Campo 3: Nota Híbrida (0 a 5 com meias estrelas via Swipe/Toque) */}
         <StarRatingInput
           label="Sua Nota (0 a 5 Estrelas)"
           value={rating}
           onChange={setRating}
-          disabled={salvando}
+          disabled={isSaving}
         />
 
-        {/* Campo 4: Tempo de Jogo (Horas) */}
         <View style={{ gap: spacing.xs }}>
           <AppText variant="subtitle">Tempo de Jogo (Horas)</AppText>
           <TextInput
@@ -423,11 +414,10 @@ export default function GameFormScreen({ route, navigation }) {
             value={playtime}
             onChangeText={handlePlaytimeChange}
             keyboardType="numeric"
-            editable={!salvando}
+            editable={!isSaving}
           />
         </View>
 
-        {/* Campo 5: Texto da Avaliação (Comentários) */}
         <View style={{ gap: spacing.xs }}>
           <AppText variant="subtitle">Avaliação e Comentários</AppText>
           <TextInput
@@ -448,22 +438,21 @@ export default function GameFormScreen({ route, navigation }) {
             multiline
             numberOfLines={5}
             textAlignVertical="top"
-            editable={!salvando}
+            editable={!isSaving}
           />
         </View>
 
-        {/* Botões de Ação (Salvar e Excluir) */}
         <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
           <Button
             label={
-              salvando
+              isSaving
                 ? 'Salvando no banco local...'
                 : isEditing
                 ? 'Salvar Alterações'
                 : 'Salvar Avaliação no Backlog'
             }
-            onPress={handleSalvar}
-            disabled={salvando}
+            onPress={handleSave}
+            disabled={isSaving}
           />
 
           {isEditing ? (
@@ -477,8 +466,8 @@ export default function GameFormScreen({ route, navigation }) {
               ]}
             >
               <Pressable
-                onPress={handleConfirmarExclusao}
-                disabled={salvando}
+                onPress={handleConfirmDelete}
+                disabled={isSaving}
                 hitSlop={8}
                 android_ripple={{ color: 'rgba(229, 72, 77, 0.25)' }}
                 accessibilityRole="button"
@@ -490,7 +479,7 @@ export default function GameFormScreen({ route, navigation }) {
                     backgroundColor: pressed
                       ? colors.danger + '33'
                       : colors.danger + '18',
-                    opacity: salvando ? 0.5 : 1,
+                    opacity: isSaving ? 0.5 : 1,
                   },
                 ]}
               >
