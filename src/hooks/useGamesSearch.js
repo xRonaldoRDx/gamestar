@@ -1,18 +1,22 @@
 import { useCallback, useState } from 'react';
-import NetInfo from '@react-native-community/netinfo';
-import { fetchGamesFromApi } from '../services/api';
-import { filterMockGamesByTitle } from '../services/mockGames';
+import { searchCatalogGames, searchIgdbGames } from '../services/games';
+import { toFriendlyMessage } from '../services/supabase';
 
-export function useGamesSearch() {
-  const [searchQuery, setSearchQuery] = useState('');
+/**
+ * Searches the Gamestar catalog and IGDB in parallel. IGDB results that were
+ * already imported into the catalog are shown only once (as catalog games).
+ */
+export function useGamesSearch(initialQuery = '') {
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [isLoading, setIsLoading] = useState(false);
-  const [games, setGames] = useState([]);
+  const [catalogGames, setCatalogGames] = useState([]);
+  const [igdbGames, setIgdbGames] = useState([]);
   const [error, setError] = useState('');
+  const [igdbWarning, setIgdbWarning] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
-  const [isMockMode, setIsMockMode] = useState(false);
 
-  const searchGames = useCallback(async () => {
-    const trimmedQuery = searchQuery.trim();
+  const searchGames = useCallback(async (queryOverride) => {
+    const trimmedQuery = (typeof queryOverride === 'string' ? queryOverride : searchQuery).trim();
     if (!trimmedQuery) {
       setError('Digite o nome de um jogo para pesquisar.');
       return;
@@ -20,49 +24,46 @@ export function useGamesSearch() {
 
     setIsLoading(true);
     setError('');
+    setIgdbWarning('');
     setHasSearched(true);
 
-    try {
-      if (isMockMode) {
-        const localResults = filterMockGamesByTitle(trimmedQuery);
-        setGames(localResults);
-        return;
-      }
+    const [catalogResult, igdbResult] = await Promise.allSettled([
+      searchCatalogGames(trimmedQuery),
+      searchIgdbGames(trimmedQuery),
+    ]);
 
-      const netState = await NetInfo.fetch();
-      if (netState.isConnected === false || netState.isInternetReachable === false) {
-        throw new Error(
-          'Não foi possível conectar ao servidor de jogos. Verifique sua conexão com a internet.'
-        );
-      }
-
-      const remoteResults = await fetchGamesFromApi(trimmedQuery);
-      setGames(remoteResults);
-    } catch (err) {
-      setError(err.message || 'Não foi possível conectar ao servidor de jogos.');
-      setGames([]);
-    } finally {
+    if (catalogResult.status === 'rejected') {
+      setError(toFriendlyMessage(catalogResult.reason, 'Não foi possível buscar na base do Gamestar.'));
+      setCatalogGames([]);
+      setIgdbGames([]);
       setIsLoading(false);
+      return;
     }
-  }, [searchQuery, isMockMode]);
 
-  const enableMockMode = useCallback(() => {
-    setIsMockMode(true);
-    setError('');
+    const catalog = catalogResult.value;
+    const importedIgdbIds = new Set(catalog.map((game) => game.igdb_id).filter(Boolean));
+    setCatalogGames(catalog);
+
+    // IGDB failing should not hide catalog results
+    if (igdbResult.status === 'fulfilled') {
+      setIgdbGames(igdbResult.value.filter((game) => !importedIgdbIds.has(game.igdb_id)));
+    } else {
+      setIgdbGames([]);
+      setIgdbWarning(igdbResult.reason?.message || 'O catálogo IGDB não respondeu agora.');
+    }
+
     setIsLoading(false);
-    setGames([]);
-    setHasSearched(false);
-  }, []);
+  }, [searchQuery]);
 
   return {
     searchQuery,
     setSearchQuery,
     isLoading,
-    games,
+    catalogGames,
+    igdbGames,
     error,
+    igdbWarning,
     hasSearched,
-    isMockMode,
     searchGames,
-    enableMockMode,
   };
 }
