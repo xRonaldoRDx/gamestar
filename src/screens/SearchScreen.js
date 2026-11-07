@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../components/AppText';
 import Button from '../components/Button';
 import GameSearchResults from '../components/GameSearchResults';
@@ -21,8 +22,17 @@ export default function SearchScreen({ navigation }) {
     igdbWarning,
     hasSearched,
     searchGames,
+    resetSearch,
   } = useGamesSearch();
   const [importingIgdbId, setImportingIgdbId] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        resetSearch();
+      };
+    }, [resetSearch])
+  );
 
   async function handleOpenIgdbGame(igdbGame) {
     setImportingIgdbId(igdbGame.igdb_id);
@@ -48,7 +58,10 @@ export default function SearchScreen({ navigation }) {
   }
 
   return (
-    <View style={[styles.flex, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View
         style={[
           styles.searchBar,
@@ -62,7 +75,9 @@ export default function SearchScreen({ navigation }) {
           onSubmitEditing={() => searchGames()}
           placeholder="Digite o título do jogo..."
           returnKeyType="search"
+          autoComplete="off"
           autoCorrect={false}
+          textContentType="none"
           accessibilityLabel="Buscar jogo"
         />
         <Button label="Buscar" onPress={() => searchGames()} disabled={isLoading} />
@@ -102,7 +117,7 @@ export default function SearchScreen({ navigation }) {
           }
         />
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

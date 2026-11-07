@@ -1,5 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../components/AppText';
 import Avatar from '../components/Avatar';
 import EmptyState from '../components/EmptyState';
@@ -21,7 +29,14 @@ export default function PeopleScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Debounced so typing does not fire one request per keystroke
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setSearchQuery('');
+      };
+    }, [])
+  );
+
   useEffect(() => {
     let isCancelled = false;
     const timeoutId = setTimeout(async () => {
@@ -44,14 +59,19 @@ export default function PeopleScreen({ navigation }) {
   }, [searchQuery, userId]);
 
   return (
-    <View style={[styles.flex, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={{ padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <TextField
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Buscar por nome ou @usuário"
           autoCapitalize="none"
+          autoComplete="off"
           autoCorrect={false}
+          textContentType="none"
           returnKeyType="search"
           accessibilityLabel="Buscar pessoas"
         />
@@ -108,7 +128,7 @@ export default function PeopleScreen({ navigation }) {
           }
         />
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

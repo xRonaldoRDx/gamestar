@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -14,6 +14,7 @@ import Badge from '../components/Badge';
 import Button from '../components/Button';
 import GameCover from '../components/GameCover';
 import ChoiceChips from '../components/ChoiceChips';
+import { isValidRating } from '../components/RatingLabel';
 import StarRatingInput from '../components/StarRatingInput';
 import { GAME_STATUS, STATUS_KEYS } from '../services/games';
 import { deleteLibraryEntry, saveLibraryEntry } from '../services/library';
@@ -21,9 +22,9 @@ import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
 const STATUS_OPTIONS = STATUS_KEYS.map((key) => ({ value: key, label: GAME_STATUS[key].label }));
+const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
+const SCROLL_TO_BOTTOM_DELAY_MS = 150;
 
-// The catalog stores platforms as "PC, PS5, Switch"; an older entry may use a platform
-// typed by hand before this picker existed, so it is kept as an option too.
 function getPlatformOptions(gamePlatforms, savedPlatform) {
   const platforms = (gamePlatforms || '')
     .split(',')
@@ -36,21 +37,32 @@ function getPlatformOptions(gamePlatforms, savedPlatform) {
   return platforms.map((platform) => ({ value: platform, label: platform }));
 }
 
-/**
- * Adds, edits or removes a catalog game from the signed-in user's library.
- */
+function getInitialRating(entryRating) {
+  if (isValidRating(entryRating)) {
+    return entryRating;
+  }
+  if (typeof entryRating === 'string' && entryRating.trim() !== '') {
+    const parsedRating = Number(entryRating);
+    return Number.isNaN(parsedRating) ? null : parsedRating;
+  }
+  return null;
+}
+
 export default function GameFormScreen({ route, navigation }) {
   const { colors, spacing, radius, shadow } = useTheme();
   const { game, entry: existingEntry } = route.params;
   const isEditing = Boolean(existingEntry?.id);
+  const scrollViewRef = useRef(null);
 
   const platformOptions = getPlatformOptions(game.platforms, existingEntry?.platform);
   const hasSinglePlatform = platformOptions.length === 1;
 
   const [status, setStatus] = useState(existingEntry?.status ?? 'playing');
-  const [rating, setRating] = useState(Number(existingEntry?.rating) || 0);
+  const [rating, setRating] = useState(() => getInitialRating(existingEntry?.rating));
   const [playtime, setPlaytime] = useState(
-    existingEntry?.playtime ? String(existingEntry.playtime) : ''
+    existingEntry?.playtime !== null && existingEntry?.playtime !== undefined
+      ? String(existingEntry.playtime)
+      : ''
   );
   const [platform, setPlatform] = useState(
     existingEntry?.platform || (hasSinglePlatform ? platformOptions[0].value : '')
@@ -70,6 +82,12 @@ export default function GameFormScreen({ route, navigation }) {
     setPlaytime(digitsOnly);
   }
 
+  function scrollToReviewInput() {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, SCROLL_TO_BOTTOM_DELAY_MS);
+  }
+
   async function handleSave() {
     setIsSaving(true);
     setFormError('');
@@ -79,7 +97,7 @@ export default function GameFormScreen({ route, navigation }) {
         id: existingEntry?.id,
         game_id: game.id,
         status,
-        rating,
+        rating: isValidRating(rating) ? rating : null,
         playtime,
         platform,
         review: reviewText,
@@ -119,17 +137,23 @@ export default function GameFormScreen({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
-        style={styles.flex}
-        contentContainerStyle={{
-          padding: spacing.md,
-          paddingBottom: spacing.xxl,
-          gap: spacing.md,
-        }}
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingHorizontal: spacing.md,
+            paddingTop: spacing.md,
+            gap: spacing.md,
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View
           style={[
@@ -213,7 +237,6 @@ export default function GameFormScreen({ route, navigation }) {
               />
             </>
           ) : (
-            // Only admin-added games may lack platforms; then the user types it
             <TextInput
               style={[
                 styles.input,
@@ -231,6 +254,10 @@ export default function GameFormScreen({ route, navigation }) {
               onChangeText={setPlatform}
               maxLength={40}
               editable={!isSaving}
+              autoComplete="off"
+              autoCorrect={false}
+              textContentType="none"
+              importantForAutofill="no"
             />
           )}
         </View>
@@ -262,6 +289,10 @@ export default function GameFormScreen({ route, navigation }) {
             keyboardType="numeric"
             maxLength={5}
             editable={!isSaving}
+            autoComplete="off"
+            autoCorrect={false}
+            textContentType="none"
+            importantForAutofill="no"
           />
         </View>
 
@@ -282,11 +313,18 @@ export default function GameFormScreen({ route, navigation }) {
             placeholderTextColor={colors.textMuted}
             value={reviewText}
             onChangeText={setReviewText}
+            onFocus={scrollToReviewInput}
+            onContentSizeChange={scrollToReviewInput}
             multiline
             numberOfLines={5}
             maxLength={2000}
             textAlignVertical="top"
+            scrollEnabled={false}
             editable={!isSaving}
+            autoComplete="off"
+            autoCorrect={false}
+            textContentType="none"
+            importantForAutofill="no"
           />
         </View>
 
@@ -348,8 +386,15 @@ export default function GameFormScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  keyboardRoot: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 120,
   },
   coverCard: {
     flexDirection: 'row',

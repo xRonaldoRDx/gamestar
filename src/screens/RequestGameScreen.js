@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import AppText from '../components/AppText';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
@@ -10,10 +18,8 @@ import { createGameRequest, getMyGameRequests, REQUEST_STATUS } from '../service
 import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
-/**
- * Users cannot add games themselves; they ask the admins, who add the game
- * from IGDB or by hand. Also lists the user's previous requests.
- */
+const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
+
 export default function RequestGameScreen({ route, navigation }) {
   const { userId } = useAuth();
   const { colors, spacing, radius } = useTheme();
@@ -47,64 +53,80 @@ export default function RequestGameScreen({ route, navigation }) {
     }
   }
 
-  const form = (
-    <View style={{ gap: spacing.md, marginBottom: spacing.lg }}>
-      <AppText variant="body" tone="muted">
-        Não encontrou um jogo na busca? Conte qual é e nós adicionamos ao catálogo.
-      </AppText>
-      <TextField label="Nome do jogo *" value={title} onChangeText={setTitle} maxLength={120} />
-      <TextField
-        label="Plataforma"
-        value={platform}
-        onChangeText={setPlatform}
-        placeholder="Ex: Switch, PS2, Mobile"
-        maxLength={60}
-      />
-      <TextField
-        label="Observação"
-        value={note}
-        onChangeText={setNote}
-        multiline
-        maxLength={300}
-        placeholder="Ano, desenvolvedora ou qualquer detalhe que ajude a encontrar o jogo"
-      />
-
-      {formError ? (
-        <AppText variant="body" tone="danger">
-          {formError}
-        </AppText>
-      ) : null}
-
-      <Button
-        label={isSubmitting ? 'Enviando...' : 'Enviar pedido'}
-        onPress={handleSubmit}
-        disabled={isSubmitting}
-      />
-
-      {myRequests?.length ? (
-        <AppText variant="caption" tone="muted" style={[styles.sectionTitle, { marginTop: spacing.md }]}>
-          MEUS PEDIDOS
-        </AppText>
-      ) : null}
-    </View>
-  );
-
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
-      <FlatList
-        data={myRequests ?? []}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+        ]}
         keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={form}
-        renderItem={({ item }) => {
+      >
+        <View style={{ gap: spacing.md, marginBottom: spacing.lg }}>
+          <AppText variant="body" tone="muted">
+            Não encontrou um jogo na busca? Conte qual é e nós adicionamos ao catálogo.
+          </AppText>
+          <TextField
+            label="Nome do jogo *"
+            value={title}
+            onChangeText={setTitle}
+            maxLength={120}
+            autoComplete="off"
+            autoCorrect={false}
+            textContentType="none"
+          />
+          <TextField
+            label="Plataforma"
+            value={platform}
+            onChangeText={setPlatform}
+            placeholder="Ex: Switch, PS2, Mobile"
+            maxLength={60}
+            autoComplete="off"
+            autoCorrect={false}
+            textContentType="none"
+          />
+          <TextField
+            label="Observação"
+            value={note}
+            onChangeText={setNote}
+            multiline
+            maxLength={300}
+            placeholder="Ano, desenvolvedora ou qualquer detalhe que ajude a encontrar o jogo"
+            autoComplete="off"
+            autoCorrect={false}
+            textContentType="none"
+          />
+
+          {formError ? (
+            <AppText variant="body" tone="danger">
+              {formError}
+            </AppText>
+          ) : null}
+
+          <Button
+            label={isSubmitting ? 'Enviando...' : 'Enviar pedido'}
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+          />
+
+          {myRequests?.length ? (
+            <AppText variant="caption" tone="muted" style={[styles.sectionTitle, { marginTop: spacing.md }]}>
+              MEUS PEDIDOS
+            </AppText>
+          ) : null}
+        </View>
+
+        {(myRequests ?? []).map((item) => {
           const status = REQUEST_STATUS[item.status];
           const canOpenGame = item.status === 'approved' && item.game_id;
           return (
             <Pressable
+              key={String(item.id)}
               disabled={!canOpenGame}
               onPress={() => navigation.navigate('GameDetails', { gameId: item.game_id })}
               accessibilityRole={canOpenGame ? 'button' : undefined}
@@ -120,7 +142,7 @@ export default function RequestGameScreen({ route, navigation }) {
                 },
               ]}
             >
-              <View style={styles.flex}>
+              <View style={styles.keyboardRoot}>
                 <AppText variant="subtitle" numberOfLines={1}>
                   {item.title}
                 </AppText>
@@ -133,15 +155,22 @@ export default function RequestGameScreen({ route, navigation }) {
               <Badge label={status.label} tone={status.tone} />
             </Pressable>
           );
-        }}
-      />
+        })}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  keyboardRoot: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 120,
   },
   sectionTitle: {
     fontWeight: '700',

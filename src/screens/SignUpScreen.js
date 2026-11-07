@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../theme/ThemeProvider';
 
 const MIN_PASSWORD_LENGTH = 6;
+const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
@@ -45,11 +46,16 @@ export default function SignUpScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <TextField
@@ -58,7 +64,9 @@ export default function SignUpScreen() {
           onChangeText={setDisplayName}
           placeholder="Como você quer ser chamado"
           maxLength={40}
-          autoComplete="name"
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
         <TextField
           label="Nome de usuário"
@@ -67,7 +75,9 @@ export default function SignUpScreen() {
           placeholder="ex: gustavo_gamer"
           hint="3 a 20 caracteres: letras minúsculas, números e _"
           autoCapitalize="none"
+          autoComplete="off"
           autoCorrect={false}
+          textContentType="none"
           maxLength={20}
         />
         <TextField
@@ -77,7 +87,9 @@ export default function SignUpScreen() {
           placeholder="voce@email.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           autoComplete="email"
+          textContentType="emailAddress"
         />
         <TextField
           label="Senha"
@@ -85,6 +97,7 @@ export default function SignUpScreen() {
           onChangeText={setPassword}
           placeholder={`Mínimo de ${MIN_PASSWORD_LENGTH} caracteres`}
           isPassword
+          autoCorrect={false}
           autoComplete="new-password"
           textContentType="newPassword"
         />
@@ -94,6 +107,7 @@ export default function SignUpScreen() {
           onChangeText={setPasswordConfirmation}
           placeholder="Digite a senha novamente"
           isPassword
+          autoCorrect={false}
           autoComplete="new-password"
           textContentType="newPassword"
           hint={
@@ -122,7 +136,14 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  keyboardRoot: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 120,
   },
 });

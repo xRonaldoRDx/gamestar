@@ -1,19 +1,21 @@
 import React, { useEffect, useRef } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AppText from './AppText';
+import { isValidRating } from './RatingLabel';
 import { useTheme } from '../theme/ThemeProvider';
 
 const STAR_INDICES = [1, 2, 3, 4, 5];
 
 export default function StarRatingInput({
-  value = 0,
+  value = null,
   onChange,
   disabled = false,
   label = 'Sua Nota',
 }) {
   const { colors, spacing, radius } = useTheme();
-  const clampedValue = Math.max(0, Math.min(5, Number(value) || 0));
+  const hasNumericRating = isValidRating(value);
+  const clampedValue = hasNumericRating ? Math.max(0, Math.min(5, value)) : 0;
 
   const trackWidthRef = useRef(0);
   const startXRef = useRef(0);
@@ -25,7 +27,6 @@ export default function StarRatingInput({
     disabledRef.current = disabled;
   }, [onChange, disabled]);
 
-  // Maps horizontal touch coordinate [0..trackWidth] into discrete 0.5 star steps [0.0..5.0]
   function updateRatingFromTouchX(touchX) {
     if (disabledRef.current || !onChangeRef.current) return;
 
@@ -61,6 +62,9 @@ export default function StarRatingInput({
   ).current;
 
   function getStarIconName(starNumber) {
+    if (!hasNumericRating) {
+      return 'star-outline';
+    }
     if (clampedValue >= starNumber) {
       return 'star';
     }
@@ -77,26 +81,42 @@ export default function StarRatingInput({
           {label}
         </AppText>
 
-        <View
-          style={[
-            styles.scoreBadge,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.primary,
-              borderRadius: radius.sm,
-              paddingHorizontal: spacing.sm + 2,
-              paddingVertical: 2,
-            },
-          ]}
-        >
-          <AppText
-            variant="subtitle"
-            tone="primary"
-            numberOfLines={1}
-            style={styles.scoreText}
+        <View style={styles.badgeActionsRow}>
+          {hasNumericRating && onChange ? (
+            <Pressable
+              onPress={() => onChange(null)}
+              disabled={disabled}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Limpar nota"
+            >
+              <AppText variant="caption" tone="muted">
+                Limpar
+              </AppText>
+            </Pressable>
+          ) : null}
+
+          <View
+            style={[
+              styles.scoreBadge,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.primary,
+                borderRadius: radius.sm,
+                paddingHorizontal: spacing.sm + 2,
+                paddingVertical: 2,
+              },
+            ]}
           >
-            {clampedValue.toFixed(1)} / 5.0
-          </AppText>
+            <AppText
+              variant="subtitle"
+              tone="primary"
+              numberOfLines={1}
+              style={styles.scoreText}
+            >
+              {hasNumericRating ? `${clampedValue.toFixed(1)} / 5.0` : 'Sem nota'}
+            </AppText>
+          </View>
         </View>
       </View>
 
@@ -120,14 +140,17 @@ export default function StarRatingInput({
           {...panResponder.panHandlers}
           accessible
           accessibilityRole="adjustable"
-          accessibilityLabel={`Nota atual ${clampedValue.toFixed(1)} de 5 estrelas. Toque ou arraste horizontalmente para alterar.`}
+          accessibilityLabel={
+            hasNumericRating
+              ? `Nota atual ${clampedValue.toFixed(1)} de 5 estrelas. Toque ou arraste horizontalmente para alterar.`
+              : 'Sem nota atribuída. Toque ou arraste horizontalmente para avaliar.'
+          }
           style={styles.starsTrack}
         >
-          {/* pointerEvents="none" prevents child icons from hijacking locationX relative coordinates */}
           <View pointerEvents="none" style={styles.starsRow}>
             {STAR_INDICES.map((starNumber) => {
               const iconName = getStarIconName(starNumber);
-              const isFilled = clampedValue >= starNumber - 0.5;
+              const isFilled = hasNumericRating && clampedValue >= starNumber - 0.5;
 
               return (
                 <View key={starNumber} style={styles.starWrapper}>
@@ -164,6 +187,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     flex: 1,
+  },
+  badgeActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   scoreBadge: {
     borderWidth: 1,

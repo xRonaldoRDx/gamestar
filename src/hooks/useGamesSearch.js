@@ -2,10 +2,6 @@ import { useCallback, useState } from 'react';
 import { searchCatalogGames, searchIgdbGames } from '../services/games';
 import { toFriendlyMessage } from '../services/supabase';
 
-/**
- * Searches the Gamestar catalog and IGDB in parallel. IGDB results that were
- * already imported into the catalog are shown only once (as catalog games).
- */
 export function useGamesSearch(initialQuery = '') {
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [isLoading, setIsLoading] = useState(false);
@@ -14,6 +10,16 @@ export function useGamesSearch(initialQuery = '') {
   const [error, setError] = useState('');
   const [igdbWarning, setIgdbWarning] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+
+  const resetSearch = useCallback(() => {
+    setSearchQuery(initialQuery);
+    setCatalogGames([]);
+    setIgdbGames([]);
+    setError('');
+    setIgdbWarning('');
+    setHasSearched(false);
+    setIsLoading(false);
+  }, [initialQuery]);
 
   const searchGames = useCallback(async (queryOverride) => {
     const trimmedQuery = (typeof queryOverride === 'string' ? queryOverride : searchQuery).trim();
@@ -44,7 +50,6 @@ export function useGamesSearch(initialQuery = '') {
     const importedIgdbIds = new Set(catalog.map((game) => game.igdb_id).filter(Boolean));
     setCatalogGames(catalog);
 
-    // IGDB failing should not hide catalog results
     if (igdbResult.status === 'fulfilled') {
       setIgdbGames(igdbResult.value.filter((game) => !importedIgdbIds.has(game.igdb_id)));
     } else {
@@ -65,5 +70,6 @@ export function useGamesSearch(initialQuery = '') {
     igdbWarning,
     hasSearched,
     searchGames,
+    resetSearch,
   };
 }

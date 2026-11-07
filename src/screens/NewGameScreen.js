@@ -10,11 +10,8 @@ import { useTheme } from '../theme/ThemeProvider';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_RELEASE_YEAR = 1950;
+const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 
-/**
- * Admin-only: adds a game that IGDB does not have. When opened from a
- * request, approving the new game also resolves those requests.
- */
 export default function NewGameScreen({ route, navigation }) {
   const { colors, spacing } = useTheme();
   const requestIds = route?.params?.requestIds ?? [];
@@ -47,7 +44,6 @@ export default function NewGameScreen({ route, navigation }) {
     setIsSaving(true);
     setFormError('');
     try {
-      // Avoids obvious duplicates: same title (case-insensitive) already in the catalog
       const similarGames = await searchCatalogGames(trimmedTitle);
       const duplicate = similarGames.find(
         (game) => game.title.toLowerCase() === trimmedTitle.toLowerCase()
@@ -81,18 +77,31 @@ export default function NewGameScreen({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <AppText variant="body" tone="muted">
           Use apenas para jogos que não existem na IGDB. O jogo fica disponível para todos.
         </AppText>
 
-        <TextField label="Nome do jogo *" value={title} onChangeText={setTitle} maxLength={120} />
+        <TextField
+          label="Nome do jogo *"
+          value={title}
+          onChangeText={setTitle}
+          maxLength={120}
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
+        />
         <TextField
           label="Ano de lançamento"
           value={releaseYear}
@@ -100,6 +109,9 @@ export default function NewGameScreen({ route, navigation }) {
           keyboardType="number-pad"
           maxLength={4}
           placeholder={String(CURRENT_YEAR)}
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
         <TextField
           label="Plataformas"
@@ -107,6 +119,9 @@ export default function NewGameScreen({ route, navigation }) {
           onChangeText={setPlatforms}
           placeholder="Ex: Switch, PS5"
           maxLength={80}
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
         <TextField
           label="Gêneros"
@@ -114,6 +129,9 @@ export default function NewGameScreen({ route, navigation }) {
           onChangeText={setGenres}
           placeholder="Ex: Aventura, RPG"
           maxLength={80}
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
         <TextField
           label="Desenvolvedora"
@@ -121,6 +139,9 @@ export default function NewGameScreen({ route, navigation }) {
           onChangeText={setDeveloper}
           placeholder="Ex: Nintendo"
           maxLength={80}
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
         <TextField
           label="Link da capa"
@@ -128,7 +149,9 @@ export default function NewGameScreen({ route, navigation }) {
           onChangeText={setCoverUrl}
           placeholder="https://..."
           autoCapitalize="none"
+          autoComplete="off"
           autoCorrect={false}
+          textContentType="none"
           keyboardType="url"
           hint="Imagem vertical, de preferência no formato de caixa do jogo"
         />
@@ -150,7 +173,14 @@ export default function NewGameScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  keyboardRoot: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 120,
   },
 });

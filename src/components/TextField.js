@@ -6,11 +6,17 @@ import { useTheme } from '../theme/ThemeProvider';
 
 const PASSWORD_TOGGLE_WIDTH = 48;
 
-/**
- * Labeled text input. With `isPassword`, the text starts hidden and an eye
- * button lets the user reveal what they typed.
- */
-export default function TextField({ label, hint, multiline = false, isPassword = false, style, ...rest }) {
+export default function TextField({
+  label,
+  hint,
+  multiline = false,
+  isPassword = false,
+  autoComplete = 'off',
+  autoCorrect = false,
+  textContentType = 'none',
+  style,
+  ...rest
+}) {
   const { colors, spacing, radius } = useTheme();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
@@ -28,7 +34,10 @@ export default function TextField({ label, hint, multiline = false, isPassword =
           accessibilityLabel={label}
           secureTextEntry={isPassword && !isPasswordVisible}
           autoCapitalize={isPassword ? 'none' : undefined}
-          autoCorrect={isPassword ? false : undefined}
+          autoComplete={autoComplete}
+          autoCorrect={autoCorrect}
+          textContentType={textContentType}
+          importantForAutofill="no"
           style={[
             styles.input,
             {

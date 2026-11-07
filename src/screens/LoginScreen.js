@@ -25,7 +25,6 @@ export default function LoginScreen({ navigation }) {
     setIsSubmitting(true);
     setFormError('');
     try {
-      // On success the navigator swaps to the signed-in screens by itself
       await signIn(email, password);
     } catch (err) {
       setFormError(err.message);
@@ -36,7 +35,7 @@ export default function LoginScreen({ navigation }) {
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={[
@@ -66,6 +65,7 @@ export default function LoginScreen({ navigation }) {
           placeholder="voce@email.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           autoComplete="email"
           textContentType="emailAddress"
         />
@@ -75,6 +75,7 @@ export default function LoginScreen({ navigation }) {
           onChangeText={setPassword}
           placeholder="••••••"
           isPassword
+          autoCorrect={false}
           autoComplete="current-password"
           textContentType="password"
           onSubmitEditing={handleSignIn}

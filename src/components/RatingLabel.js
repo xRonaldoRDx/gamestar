@@ -1,8 +1,12 @@
 import React from 'react';
 import AppText from './AppText';
 
+export function isValidRating(rating) {
+  return typeof rating === 'number' && !Number.isNaN(rating);
+}
+
 export function formatRating(rating) {
-  return Number(rating) > 0 ? `★ ${Number(rating).toFixed(1)}/5.0` : 'Sem nota';
+  return isValidRating(rating) ? `★ ${rating.toFixed(1)}/5.0` : 'Sem nota';
 }
 
 export default function RatingLabel({ rating, variant = 'subtitle', style }) {

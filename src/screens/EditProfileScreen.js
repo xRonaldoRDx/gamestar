@@ -9,6 +9,7 @@ import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
 const MAX_BIO_LENGTH = 160;
+const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 
 export default function EditProfileScreen({ route, navigation }) {
   const { userId, reloadProfile } = useAuth();
@@ -35,17 +36,30 @@ export default function EditProfileScreen({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <AppText variant="body" tone="muted">
           @{profile.username}
         </AppText>
-        <TextField label="Nome" value={displayName} onChangeText={setDisplayName} maxLength={40} />
+        <TextField
+          label="Nome"
+          value={displayName}
+          onChangeText={setDisplayName}
+          maxLength={40}
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
+        />
         <TextField
           label="Bio"
           value={bio}
@@ -54,6 +68,9 @@ export default function EditProfileScreen({ route, navigation }) {
           maxLength={MAX_BIO_LENGTH}
           hint={`${bio.length}/${MAX_BIO_LENGTH}`}
           placeholder="Conte que tipo de jogo você curte"
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
 
         {formError ? (
@@ -69,7 +86,14 @@ export default function EditProfileScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  keyboardRoot: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 120,
   },
 });

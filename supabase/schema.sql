@@ -125,7 +125,6 @@ begin
       and column_name = 'rating' and numeric_precision = 3
   ) then
     update public.user_games set rating = round(rating) / 2.0 where rating is not null;
-    update public.user_games set rating = null where rating = 0;
     alter table public.user_games alter column rating type numeric(2, 1);
   end if;
 end;
@@ -136,9 +135,9 @@ update public.user_games set status = 'wishlist' where status = 'backlog';
 alter table public.user_games add constraint user_games_status_check
   check (status in ('playing', 'completed', 'dropped', 'paused', 'wishlist'));
 
--- Half-star steps from 0.5 to 5; null means "not rated"
+-- Half-star steps from 0 to 5; null means "not rated"
 alter table public.user_games add constraint user_games_rating_check
-  check (rating between 0.5 and 5 and rating * 2 = floor(rating * 2));
+  check (rating between 0 and 5 and rating * 2 = floor(rating * 2));
 
 create index if not exists user_games_user_idx on public.user_games (user_id, updated_at desc);
 create index if not exists user_games_game_idx on public.user_games (game_id, updated_at desc);

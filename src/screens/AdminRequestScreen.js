@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import AppText from '../components/AppText';
 import Button from '../components/Button';
 import GameSearchResults from '../components/GameSearchResults';
@@ -11,10 +11,6 @@ import { resolveGameRequests } from '../services/requests';
 import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
-/**
- * Resolves a group of requests for the same title: link it to a catalog/IGDB
- * game, add it by hand, or reject it.
- */
 export default function AdminRequestScreen({ route, navigation }) {
   const { colors, spacing, radius } = useTheme();
   const { group } = route.params;
@@ -32,7 +28,6 @@ export default function AdminRequestScreen({ route, navigation }) {
   } = useGamesSearch(group.title);
   const [importingIgdbId, setImportingIgdbId] = useState(null);
 
-  // Starts with the requested title so the admin usually only has to pick a result
   useEffect(() => {
     searchGames(group.title);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -113,7 +108,9 @@ export default function AdminRequestScreen({ route, navigation }) {
           onChangeText={setSearchQuery}
           onSubmitEditing={() => searchGames()}
           returnKeyType="search"
+          autoComplete="off"
           autoCorrect={false}
+          textContentType="none"
           accessibilityLabel="Buscar jogo para este pedido"
         />
         <Button label="Buscar" onPress={() => searchGames()} disabled={isLoading} />
@@ -142,7 +139,10 @@ export default function AdminRequestScreen({ route, navigation }) {
   );
 
   return (
-    <View style={[styles.flex, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       {isLoading ? <LoadingState message="Procurando jogos..." /> : null}
       {!isLoading && error ? <ErrorState message={error} /> : null}
       {!isLoading && !error ? (
@@ -161,7 +161,7 @@ export default function AdminRequestScreen({ route, navigation }) {
           ListFooterComponent={footer}
         />
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

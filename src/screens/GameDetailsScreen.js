@@ -5,6 +5,7 @@ import AppText from '../components/AppText';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import GameCover from '../components/GameCover';
+import { isValidRating } from '../components/RatingLabel';
 import { ErrorState, LoadingState } from '../components/ScreenState';
 import { useAuth } from '../contexts/AuthContext';
 import { useFocusLoader } from '../hooks/useFocusLoader';
@@ -15,9 +16,12 @@ import { useTheme } from '../theme/ThemeProvider';
 const SUMMARY_PREVIEW_LINES = 4;
 
 function computeAverageRating(reviews) {
-  const ratings = reviews.map((review) => Number(review.rating)).filter((rating) => rating > 0);
-  if (!ratings.length) return null;
-  return ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+  const validRatings = reviews
+    .map((review) => review.rating)
+    .filter((rating) => isValidRating(rating));
+
+  if (validRatings.length === 0) return null;
+  return validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length;
 }
 
 export default function GameDetailsScreen({ route, navigation }) {
@@ -35,7 +39,6 @@ export default function GameDetailsScreen({ route, navigation }) {
     if (data?.game) navigation.setOptions({ title: data.game.title });
   }, [navigation, data?.game]);
 
-  // Re-imports IGDB data older than 30 days in the background; the page shows the stored copy meanwhile
   const isStale = data?.game ? isGameStale(data.game) : false;
   useEffect(() => {
     if (!isStale) return;
@@ -53,6 +56,12 @@ export default function GameDetailsScreen({ route, navigation }) {
   const communityReviews = reviews.filter((review) => review.user_id !== userId);
   const averageRating = computeAverageRating(reviews);
   const completedCount = reviews.filter((review) => review.status === 'completed').length;
+  const criticRating =
+    typeof game.critic_rating === 'number'
+      ? game.critic_rating
+      : game.critic_rating != null
+      ? Number(game.critic_rating)
+      : null;
 
   const openForm = () => navigation.navigate('GameForm', { game, entry: ownEntry });
 
@@ -113,11 +122,11 @@ export default function GameDetailsScreen({ route, navigation }) {
         <StatItem label="Zeraram" value={completedCount} />
         <StatItem
           label="Comunidade"
-          value={averageRating != null ? `★ ${averageRating.toFixed(1)}` : '—'}
+          value={isValidRating(averageRating) ? `★ ${averageRating.toFixed(1)}` : '—'}
         />
         <StatItem
           label="Crítica"
-          value={game.critic_rating != null ? `★ ${Number(game.critic_rating).toFixed(1)}` : '—'}
+          value={isValidRating(criticRating) ? `★ ${criticRating.toFixed(1)}` : '—'}
         />
       </View>
 

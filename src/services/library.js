@@ -6,9 +6,25 @@ const ENTRY_FIELDS = `
   profile:profiles (id, username, display_name)
 `;
 
-/**
- * Lists the library of any user, not only the signed-in one.
- */
+function parseNumericRating(rating) {
+  if (typeof rating === 'number' && !Number.isNaN(rating)) {
+    return rating;
+  }
+  if (typeof rating === 'string' && rating.trim() !== '') {
+    const parsed = Number(rating);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+function normalizeLibraryEntry(entry) {
+  if (!entry) return entry;
+  return {
+    ...entry,
+    rating: parseNumericRating(entry.rating),
+  };
+}
+
 export async function getUserLibrary(userId) {
   const { data, error } = await supabase
     .from('user_games')
@@ -17,7 +33,7 @@ export async function getUserLibrary(userId) {
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
-  return data;
+  return data.map(normalizeLibraryEntry);
 }
 
 export async function getGameReviews(gameId) {
@@ -29,17 +45,14 @@ export async function getGameReviews(gameId) {
     .limit(50);
 
   if (error) throw error;
-  return data;
+  return data.map(normalizeLibraryEntry);
 }
 
-/**
- * Creates or updates the signed-in user's entry for a game.
- */
 export async function saveLibraryEntry({ id, game_id, status, rating, review, playtime, platform }) {
+  const hasNumericRating = typeof rating === 'number' && !Number.isNaN(rating);
   const values = {
     status,
-    // 0 stars means "not rated", same convention as the star input
-    rating: Number(rating) > 0 ? Number(rating) : null,
+    rating: hasNumericRating ? rating : null,
     review: (review || '').trim(),
     playtime: playtime === '' || playtime == null ? null : parseInt(playtime, 10),
     platform: (platform || '').trim(),
@@ -51,7 +64,7 @@ export async function saveLibraryEntry({ id, game_id, status, rating, review, pl
 
   const { data, error } = await query.select(ENTRY_FIELDS).single();
   if (error) throw error;
-  return data;
+  return normalizeLibraryEntry(data);
 }
 
 export async function deleteLibraryEntry(entryId) {
@@ -59,9 +72,6 @@ export async function deleteLibraryEntry(entryId) {
   if (error) throw error;
 }
 
-/**
- * Recent activity from the people the user follows, plus their own.
- */
 export async function getActivityFeed(userId) {
   const { data: follows, error: followsError } = await supabase
     .from('follows')
@@ -80,5 +90,5 @@ export async function getActivityFeed(userId) {
     .limit(50);
 
   if (error) throw error;
-  return data;
+  return data.map(normalizeLibraryEntry);
 }
