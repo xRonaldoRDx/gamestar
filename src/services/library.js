@@ -1,9 +1,10 @@
 import { supabase } from './supabase';
+import { buildCacheBustedAvatarUrl, normalizeProfileRow } from './profiles';
 
 const ENTRY_FIELDS = `
   id, user_id, game_id, status, rating, review, playtime, platform, created_at, updated_at,
   game:games (id, title, release_year, cover_url, genres, developer, platforms, source),
-  profile:profiles (id, username, display_name)
+  profile:profiles (id, username, display_name, avatar_url)
 `;
 
 function parseNumericRating(rating) {
@@ -17,11 +18,26 @@ function parseNumericRating(rating) {
   return null;
 }
 
-function normalizeLibraryEntry(entry) {
+function normalizeEntryProfile(rawProfile, timestamp) {
+  if (!rawProfile) return rawProfile;
+  const normalized = normalizeProfileRow(rawProfile);
+  const cacheBustedAvatar = buildCacheBustedAvatarUrl(
+    normalized.avatarUrl ?? normalized.avatar_url,
+    timestamp
+  );
+  return {
+    ...normalized,
+    avatarUrl: cacheBustedAvatar,
+    avatar_url: cacheBustedAvatar,
+  };
+}
+
+function normalizeLibraryEntry(entry, timestamp = Date.now()) {
   if (!entry) return entry;
   return {
     ...entry,
     rating: parseNumericRating(entry.rating),
+    profile: normalizeEntryProfile(entry.profile, timestamp),
   };
 }
 
@@ -33,7 +49,8 @@ export async function getUserLibrary(userId) {
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
-  return data.map(normalizeLibraryEntry);
+  const fetchTimestamp = Date.now();
+  return (data ?? []).map((entry) => normalizeLibraryEntry(entry, fetchTimestamp));
 }
 
 export async function getGameReviews(gameId) {
@@ -45,7 +62,8 @@ export async function getGameReviews(gameId) {
     .limit(50);
 
   if (error) throw error;
-  return data.map(normalizeLibraryEntry);
+  const fetchTimestamp = Date.now();
+  return (data ?? []).map((entry) => normalizeLibraryEntry(entry, fetchTimestamp));
 }
 
 export async function saveLibraryEntry({ id, game_id, status, rating, review, playtime, platform }) {
@@ -64,7 +82,7 @@ export async function saveLibraryEntry({ id, game_id, status, rating, review, pl
 
   const { data, error } = await query.select(ENTRY_FIELDS).single();
   if (error) throw error;
-  return normalizeLibraryEntry(data);
+  return normalizeLibraryEntry(data, Date.now());
 }
 
 export async function deleteLibraryEntry(entryId) {
@@ -90,5 +108,6 @@ export async function getActivityFeed(userId) {
     .limit(50);
 
   if (error) throw error;
-  return data.map(normalizeLibraryEntry);
+  const fetchTimestamp = Date.now();
+  return (data ?? []).map((entry) => normalizeLibraryEntry(entry, fetchTimestamp));
 }

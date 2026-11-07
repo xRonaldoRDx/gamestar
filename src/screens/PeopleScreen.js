@@ -20,9 +20,46 @@ import { useTheme } from '../theme/ThemeProvider';
 
 const SEARCH_DEBOUNCE_MS = 350;
 
+function UserCard({ profile, onPress }) {
+  const { colors, spacing, radius } = useTheme();
+  const displayName = profile?.display_name?.trim() || profile?.username || 'Jogador';
+  const username = profile?.username || 'usuario';
+  const bio = profile?.bio?.trim() || '';
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Ver perfil de ${displayName}`}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          gap: spacing.md,
+          padding: spacing.md,
+          marginBottom: spacing.sm,
+          borderRadius: radius.md,
+          borderColor: colors.border,
+          backgroundColor: pressed ? colors.cardPressed : colors.card,
+        },
+      ]}
+    >
+      <Avatar profile={profile} size={44} />
+      <View style={styles.flex}>
+        <AppText variant="subtitle" numberOfLines={1}>
+          {displayName}
+        </AppText>
+        <AppText variant="caption" tone="muted" numberOfLines={1}>
+          @{username}
+          {bio ? ` · ${bio}` : ''}
+        </AppText>
+      </View>
+    </Pressable>
+  );
+}
+
 export default function PeopleScreen({ navigation }) {
   const { userId } = useAuth();
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing } = useTheme();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [profiles, setProfiles] = useState([]);
@@ -44,7 +81,12 @@ export default function PeopleScreen({ navigation }) {
       setError('');
       try {
         const results = await searchProfiles(searchQuery);
-        if (!isCancelled) setProfiles(results.filter((profile) => profile.id !== userId));
+        if (!isCancelled) {
+          const safeResults = Array.isArray(results) ? results : [];
+          setProfiles(
+            safeResults.filter((profile) => Boolean(profile?.id) && profile.id !== userId)
+          );
+        }
       } catch (err) {
         if (!isCancelled) setError(toFriendlyMessage(err, 'Não foi possível buscar usuários.'));
       } finally {
@@ -83,37 +125,14 @@ export default function PeopleScreen({ navigation }) {
       {!isLoading && !error ? (
         <FlatList
           data={profiles}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => (item?.id ? String(item.id) : `profile-${index}`)}
           contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xxl }}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <Pressable
+            <UserCard
+              profile={item}
               onPress={() => navigation.navigate('Profile', { userId: item.id })}
-              accessibilityRole="button"
-              accessibilityLabel={`Ver perfil de ${item.display_name || item.username}`}
-              style={({ pressed }) => [
-                styles.row,
-                {
-                  gap: spacing.md,
-                  padding: spacing.md,
-                  marginBottom: spacing.sm,
-                  borderRadius: radius.md,
-                  borderColor: colors.border,
-                  backgroundColor: pressed ? colors.cardPressed : colors.card,
-                },
-              ]}
-            >
-              <Avatar profile={item} />
-              <View style={styles.flex}>
-                <AppText variant="subtitle" numberOfLines={1}>
-                  {item.display_name || item.username}
-                </AppText>
-                <AppText variant="caption" tone="muted" numberOfLines={1}>
-                  @{item.username}
-                  {item.bio ? ` · ${item.bio}` : ''}
-                </AppText>
-              </View>
-            </Pressable>
+            />
           )}
           ListEmptyComponent={
             <EmptyState

@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AppText from './AppText';
 import Avatar from './Avatar';
 import Badge from './Badge';
 import GameCover from './GameCover';
 import RatingLabel from './RatingLabel';
+import { useAuth } from '../contexts/AuthContext';
 import { GAME_STATUS } from '../services/games';
+import { buildCacheBustedAvatarUrl } from '../services/profiles';
 import { useTheme } from '../theme/ThemeProvider';
 
 const STATUS_VERB = {
@@ -27,14 +30,37 @@ function formatRelativeTime(isoDate) {
   return new Date(isoDate).toLocaleDateString('pt-BR');
 }
 
-/**
- * "So-and-so completed X" card with rating and review.
- * `showGame={false}` hides the game, used on the game's own page.
- */
 export default function ActivityCard({ entry, onPressProfile, onPressGame, showGame = true }) {
   const { colors, spacing, radius } = useTheme();
+  const { userId: currentUserId, profile: currentUserProfile } = useAuth();
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const isOwnActivity = entry.user_id === currentUserId && Boolean(currentUserProfile);
+  const rawAuthorProfile = isOwnActivity
+    ? { ...entry.profile, ...currentUserProfile }
+    : entry.profile;
+
+  const rawAvatarUri = rawAuthorProfile?.avatarUrl ?? rawAuthorProfile?.avatar_url ?? null;
+  const resolvedAvatarUri =
+    typeof rawAvatarUri === 'string' && (rawAvatarUri.includes('?t=') || rawAvatarUri.includes('&t='))
+      ? rawAvatarUri
+      : buildCacheBustedAvatarUrl(rawAvatarUri);
+
+  const authorProfile = {
+    ...rawAuthorProfile,
+    avatarUrl: resolvedAvatarUri,
+    avatar_url: resolvedAvatarUri,
+  };
+
   const status = GAME_STATUS[entry.status] || GAME_STATUS.wishlist;
-  const authorName = entry.profile?.display_name || entry.profile?.username;
+  const authorName =
+    authorProfile?.displayName || authorProfile?.display_name || authorProfile?.username;
+  const reviewText = (entry.review || '').trim();
+  const hasReview = Boolean(reviewText);
+
+  function handleToggleExpand() {
+    setIsExpanded((previousState) => !previousState);
+  }
 
   return (
     <View
@@ -57,7 +83,7 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
         accessibilityLabel={`Ver perfil de ${authorName}`}
         style={[styles.header, { gap: spacing.sm }]}
       >
-        <Avatar profile={entry.profile} size={36} />
+        <Avatar profile={authorProfile} size={36} />
         <View style={styles.flex}>
           <AppText variant="body" numberOfLines={2}>
             <AppText variant="body" style={styles.boldText}>
@@ -71,7 +97,7 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
             ) : null}
           </AppText>
           <AppText variant="caption" tone="muted">
-            @{entry.profile?.username} · {formatRelativeTime(entry.updated_at)}
+            @{authorProfile?.username} · {formatRelativeTime(entry.updated_at)}
           </AppText>
         </View>
       </Pressable>
@@ -87,6 +113,17 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
           </Pressable>
         ) : null}
         <View style={[styles.flex, { gap: spacing.xs }]}>
+          {showGame && entry.game?.title ? (
+            <Pressable
+              onPress={onPressGame}
+              accessibilityRole="button"
+              accessibilityLabel={`Abrir detalhes de ${entry.game.title}`}
+            >
+              <AppText variant="subtitle" numberOfLines={1}>
+                {entry.game.title}
+              </AppText>
+            </Pressable>
+          ) : null}
           <Badge label={status.label} tone={status.tone} />
           <RatingLabel rating={entry.rating} />
           {entry.playtime ? (
@@ -97,10 +134,50 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
         </View>
       </View>
 
-      {entry.review ? (
-        <AppText variant="body" tone="muted" numberOfLines={6}>
-          “{entry.review}”
-        </AppText>
+      {hasReview ? (
+        <View style={{ gap: spacing.xs }}>
+          {isExpanded ? (
+            <View
+              style={[
+                styles.reviewBox,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderRadius: radius.sm,
+                  padding: spacing.sm,
+                },
+              ]}
+            >
+              <AppText variant="body" tone="muted">
+                “{reviewText}”
+              </AppText>
+            </View>
+          ) : null}
+
+          <Pressable
+            onPress={handleToggleExpand}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: isExpanded }}
+            accessibilityLabel={isExpanded ? 'Ocultar avaliação' : 'Ver mais da avaliação'}
+            style={({ pressed }) => [
+              styles.expandToggle,
+              {
+                paddingVertical: spacing.xs,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <AppText variant="caption" tone="primary" style={styles.expandToggleText}>
+              {isExpanded ? 'Ocultar avaliação' : 'Ver mais (avaliação)'}
+            </AppText>
+            <Ionicons
+              name={isExpanded ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={colors.primary}
+            />
+          </Pressable>
+        </View>
       ) : null}
     </View>
   );
@@ -123,5 +200,17 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  reviewBox: {
+    borderWidth: 1,
+  },
+  expandToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  expandToggleText: {
+    fontWeight: '700',
   },
 });

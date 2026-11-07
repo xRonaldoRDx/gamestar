@@ -7,8 +7,6 @@ const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 
-// Session is persisted in expo-sqlite's localStorage so the login survives app restarts.
-// Stays null when .env is missing; App renders a setup notice instead of crashing.
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseKey, {
       auth: {
@@ -30,11 +28,16 @@ export function toFriendlyMessage(error, fallback = 'Algo deu errado. Tente nova
   if (message.includes('password should be at least')) return 'A senha precisa ter pelo menos 6 caracteres.';
   if (message.includes('unable to validate email') || message.includes('invalid format')) return 'E-mail inválido.';
   if (message.includes('email not confirmed')) return 'Confirme seu e-mail antes de entrar.';
+  if (message.includes('bucket not found')) {
+    return 'Não foi possível enviar a imagem. Tente novamente.';
+  }
+  if (message.includes('row-level security') || message.includes('violates row-level security')) {
+    return 'Sem permissão para realizar esta operação.';
+  }
   if (message.includes('network request failed') || message.includes('fetch failed')) {
     return 'Falha de conexão. Verifique sua internet.';
   }
   if (error.code === '23505') return 'Este registro já existe.';
 
-  console.error('[Supabase]', error);
   return fallback;
 }

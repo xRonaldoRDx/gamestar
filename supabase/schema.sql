@@ -14,8 +14,11 @@ create table if not exists public.profiles (
     check (username ~ '^[a-z0-9_]{3,20}$'),
   display_name text not null default '',
   bio text not null default '' check (char_length(bio) <= 160),
+  avatar_url text,
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists avatar_url text;
 
 -- Creates the profile automatically on sign up.
 -- username comes from options.data.username sent by the app.
@@ -42,11 +45,11 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- Admins curate the catalog. Users cannot promote themselves: they may only
--- update display_name and bio (column-level grant below).
+-- update display_name, bio and avatar_url (column-level grant below).
 alter table public.profiles add column if not exists is_admin boolean not null default false;
 
 revoke update on public.profiles from anon, authenticated;
-grant update (display_name, bio) on public.profiles to authenticated;
+grant update (display_name, bio, avatar_url) on public.profiles to authenticated;
 
 create or replace function public.is_admin()
 returns boolean
@@ -60,6 +63,46 @@ as $$
     false
   );
 $$;
+
+-- -------------------------------------------------------------
+-- AVATARS STORAGE BUCKET
+-- -------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "avatars_public_read" on storage.objects;
+create policy "avatars_public_read" on storage.objects
+  for select to public
+  using (bucket_id = 'avatars');
+
+drop policy if exists "avatars_insert_own" on storage.objects;
+create policy "avatars_insert_own" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "avatars_update_own" on storage.objects;
+create policy "avatars_update_own" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+  )
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "avatars_delete_own" on storage.objects;
+create policy "avatars_delete_own" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
 
 -- -------------------------------------------------------------
 -- GAMES (shared catalog)

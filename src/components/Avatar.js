@@ -1,23 +1,47 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AppText from './AppText';
+import { buildCacheBustedAvatarUrl } from '../services/profiles';
+import { useTheme } from '../theme/ThemeProvider';
 
-const AVATAR_COLORS = ['#66C0F4', '#A4D007', '#F2A93B', '#E5484D', '#B78BF5', '#4FD1C5'];
-
-// Color is derived from the username so each person always gets the same one
-function pickColor(username = '') {
-  const seed = [...username].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return AVATAR_COLORS[seed % AVATAR_COLORS.length];
+export function isValidAvatarUri(avatarUrl) {
+  if (typeof avatarUrl !== 'string') return false;
+  const trimmed = avatarUrl.trim();
+  return trimmed.length > 0 && /^https?:\/\/.+/i.test(trimmed);
 }
 
 export default function Avatar({ profile, size = 44 }) {
-  const name = profile?.display_name || profile?.username || '?';
-  const initials = name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-  const color = pickColor(profile?.username);
+  const { colors } = useTheme();
+  const [hasImageError, setHasImageError] = useState(false);
+
+  const candidateUri = profile?.avatarUrl ?? profile?.avatar_url ?? null;
+  const rawAvatarUrl = isValidAvatarUri(candidateUri) ? candidateUri.trim() : null;
+
+  const cacheBustedUri = useMemo(() => {
+    if (!rawAvatarUrl) return null;
+    if (rawAvatarUrl.includes('?t=') || rawAvatarUrl.includes('&t=')) {
+      return rawAvatarUrl;
+    }
+    return buildCacheBustedAvatarUrl(rawAvatarUrl);
+  }, [rawAvatarUrl]);
+
+  const shouldRenderImage = Boolean(cacheBustedUri) && !hasImageError;
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [cacheBustedUri]);
+
+  const displayName =
+    typeof profile?.displayName === 'string' && profile.displayName.trim()
+      ? profile.displayName.trim()
+      : typeof profile?.display_name === 'string' && profile.display_name.trim()
+      ? profile.display_name.trim()
+      : typeof profile?.username === 'string' && profile.username.trim()
+      ? profile.username.trim()
+      : '';
+
+  const firstLetter = displayName ? displayName.charAt(0).toUpperCase() : '';
 
   return (
     <View
@@ -27,17 +51,44 @@ export default function Avatar({ profile, size = 44 }) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: color + '33',
-          borderColor: color,
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
         },
       ]}
     >
-      <AppText
-        variant="subtitle"
-        style={{ color, fontSize: size * 0.38, lineHeight: size * 0.5, fontWeight: '800' }}
-      >
-        {initials || '?'}
-      </AppText>
+      {shouldRenderImage ? (
+        <Image
+          key={cacheBustedUri}
+          source={{ uri: cacheBustedUri }}
+          style={[
+            styles.avatarImage,
+            {
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+            },
+          ]}
+          resizeMode="cover"
+          onError={() => setHasImageError(true)}
+          accessibilityIgnoresInvertColors
+        />
+      ) : firstLetter ? (
+        <AppText
+          variant="subtitle"
+          style={[
+            styles.initialText,
+            {
+              color: colors.text,
+              fontSize: Math.round(size * 0.42),
+              lineHeight: Math.round(size * 0.52),
+            },
+          ]}
+        >
+          {firstLetter}
+        </AppText>
+      ) : (
+        <Ionicons name="person" size={Math.round(size * 0.48)} color={colors.textMuted} />
+      )}
     </View>
   );
 }
@@ -47,5 +98,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  initialText: {
+    fontWeight: '800',
+    textAlign: 'center',
   },
 });

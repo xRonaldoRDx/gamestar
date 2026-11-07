@@ -8,7 +8,7 @@ export const REQUEST_STATUS = {
 
 const REQUEST_FIELDS = `
   id, title, platform, note, status, game_id, created_at, resolved_at, requested_by,
-  requester:profiles (id, username, display_name)
+  requester:profiles (id, username, display_name, avatar_url)
 `;
 
 export async function createGameRequest({ title, platform, note }) {
@@ -31,10 +31,6 @@ export async function getMyGameRequests(userId) {
   return data;
 }
 
-/**
- * Admin-only: pending requests grouped by title, most requested first.
- * RLS returns only the admin's own requests to everyone else.
- */
 export async function getPendingRequestGroups() {
   const { data, error } = await supabase
     .from('game_requests')
@@ -56,9 +52,6 @@ export async function getPendingRequestGroups() {
   return [...groups.values()].sort((a, b) => b.requests.length - a.requests.length);
 }
 
-/**
- * Admin-only: resolves every request in a group at once.
- */
 export async function resolveGameRequests(requestIds, { status, gameId = null }) {
   const { error } = await supabase
     .from('game_requests')

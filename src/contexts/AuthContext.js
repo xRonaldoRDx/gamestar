@@ -1,9 +1,29 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { supabase, toFriendlyMessage } from '../services/supabase';
-import { getProfile, isUsernameAvailable, USERNAME_PATTERN } from '../services/profiles';
+import {
+  buildCacheBustedAvatarUrl,
+  getProfile,
+  isUsernameAvailable,
+  normalizeProfileRow,
+  USERNAME_PATTERN,
+} from '../services/profiles';
 
 const AuthContext = createContext(null);
+
+function formatAuthProfile(rawProfile) {
+  if (!rawProfile) return null;
+  const normalized = normalizeProfileRow(rawProfile);
+  const cacheBustedAvatar = buildCacheBustedAvatarUrl(
+    normalized.avatarUrl ?? normalized.avatar_url,
+    Date.now()
+  );
+  return {
+    ...normalized,
+    avatarUrl: cacheBustedAvatar,
+    avatar_url: cacheBustedAvatar,
+  };
+}
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -13,14 +33,27 @@ export function AuthProvider({ children }) {
   const loadProfile = useCallback(async (userId) => {
     if (!userId) {
       setProfile(null);
-      return;
+      return null;
     }
     try {
-      setProfile(await getProfile(userId));
-    } catch (err) {
-      console.error('[AuthContext] Failed to load profile:', err);
+      const fetchedProfile = await getProfile(userId);
+      const formattedProfile = formatAuthProfile(fetchedProfile);
+      setProfile(formattedProfile);
+      return formattedProfile;
+    } catch {
       setProfile(null);
+      return null;
     }
+  }, []);
+
+  const updateAuthProfile = useCallback((nextProfileData) => {
+    setProfile((prev) => {
+      const merged =
+        typeof nextProfileData === 'function'
+          ? nextProfileData(prev)
+          : { ...(prev || {}), ...(nextProfileData || {}) };
+      return formatAuthProfile(merged);
+    });
   }, []);
 
   useEffect(() => {
@@ -32,11 +65,9 @@ export function AuthProvider({ children }) {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      // supabase-js recommends not awaiting other Supabase calls inside this callback
       setTimeout(() => loadProfile(nextSession?.user.id), 0);
     });
 
-    // Token refresh only runs while the app is in the foreground
     const appStateSubscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') supabase.auth.startAutoRefresh();
       else supabase.auth.stopAutoRefresh();
@@ -66,7 +97,6 @@ export function AuthProvider({ children }) {
       throw new Error('Este nome de usuário já está em uso.');
     }
 
-    // The profiles row is created by a database trigger from this metadata
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -96,6 +126,7 @@ export function AuthProvider({ children }) {
         session,
         userId: session?.user.id ?? null,
         profile,
+        updateAuthProfile,
         isLoading,
         signIn,
         signUp,

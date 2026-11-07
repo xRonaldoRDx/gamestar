@@ -32,7 +32,7 @@ export default function GameDetailsScreen({ route, navigation }) {
 
   const { data, setData, isLoading, isRefreshing, error, refresh } = useFocusLoader(async () => {
     const [game, reviews] = await Promise.all([getGameById(gameId), getGameReviews(gameId)]);
-    return { game, reviews };
+    return { game, reviews: Array.isArray(reviews) ? reviews : [] };
   }, [gameId]);
 
   useLayoutEffect(() => {
@@ -43,15 +43,20 @@ export default function GameDetailsScreen({ route, navigation }) {
   useEffect(() => {
     if (!isStale) return;
     importIgdbGame(data.game.igdb_id)
-      .then((freshGame) => setData((current) => ({ ...current, game: freshGame })))
+      .then((freshGame) => setData((current) => (current ? { ...current, game: freshGame } : current)))
       .catch((err) => console.warn('[GameDetails] Background refresh failed:', err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStale]);
 
-  if (isLoading) return <LoadingState message="Carregando jogo..." />;
-  if (error && !data) return <ErrorState message={error} onRetry={refresh} />;
+  if (error && !data) {
+    return <ErrorState message={error} onRetry={refresh} />;
+  }
 
-  const { game, reviews } = data;
+  if (isLoading || !data || !data.game) {
+    return <LoadingState message="Carregando jogo..." />;
+  }
+
+  const { game, reviews = [] } = data;
   const ownEntry = reviews.find((review) => review.user_id === userId);
   const communityReviews = reviews.filter((review) => review.user_id !== userId);
   const averageRating = computeAverageRating(reviews);
