@@ -8,6 +8,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../theme/ThemeProvider';
 
 const MIN_PASSWORD_LENGTH = 6;
+const USERNAME_HINT = '3 a 20 caracteres: letras minúsculas, números e _';
+
+function normalizeUsername(text) {
+  return text.toLowerCase().replace(/[^a-z0-9_]/g, '');
+}
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
@@ -37,7 +42,7 @@ export default function SignUpScreen() {
     setIsSubmitting(true);
     setFormError('');
     try {
-      await signUp({ email, password, username, displayName });
+      await signUp({ email, password, username: normalizeUsername(username), displayName });
     } catch (err) {
       setFormError(err.message);
       setIsSubmitting(false);
@@ -69,9 +74,16 @@ export default function SignUpScreen() {
         <TextField
           label="Nome de usuário"
           value={username}
-          onChangeText={(text) => setUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+          // Rewriting the text on every keystroke confuses Android keyboards that are
+          // still composing a word (typing "Gu" became "ggu"), so it is normalized on blur
+          onChangeText={setUsername}
+          onBlur={() => setUsername(normalizeUsername(username))}
           placeholder="ex: gustavo_gamer"
-          hint="3 a 20 caracteres: letras minúsculas, números e _"
+          hint={
+            username && normalizeUsername(username) !== username
+              ? `Seu usuário será: @${normalizeUsername(username)}`
+              : USERNAME_HINT
+          }
           autoCapitalize="none"
           autoComplete="off"
           autoCorrect={false}
