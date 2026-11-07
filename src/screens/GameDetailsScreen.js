@@ -1,64 +1,205 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import ActivityCard from '../components/ActivityCard';
 import AppText from '../components/AppText';
+import Badge from '../components/Badge';
 import Button from '../components/Button';
+import GameCover from '../components/GameCover';
+import { ErrorState, LoadingState } from '../components/ScreenState';
+import { useAuth } from '../contexts/AuthContext';
+import { useFocusLoader } from '../hooks/useFocusLoader';
+import { GAME_SOURCE_LABEL, getGameById, importIgdbGame, isGameStale } from '../services/games';
+import { getGameReviews } from '../services/library';
 import { useTheme } from '../theme/ThemeProvider';
 
+const SUMMARY_PREVIEW_LINES = 4;
+
+function computeAverageRating(reviews) {
+  const ratings = reviews.map((review) => Number(review.rating)).filter((rating) => rating > 0);
+  if (!ratings.length) return null;
+  return ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+}
+
 export default function GameDetailsScreen({ route, navigation }) {
-  const { colors, spacing } = useTheme();
-  const game = route?.params?.game;
+  const { userId } = useAuth();
+  const { colors, spacing, radius } = useTheme();
+  const { gameId } = route.params;
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
-  return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, padding: spacing.lg },
-      ]}
-    >
-      <AppText variant="title" style={[styles.centerText, { marginBottom: spacing.xs }]}>
-        {game?.title || 'Detalhes do Jogo'}
-      </AppText>
+  const { data, setData, isLoading, isRefreshing, error, refresh } = useFocusLoader(async () => {
+    const [game, reviews] = await Promise.all([getGameById(gameId), getGameReviews(gameId)]);
+    return { game, reviews };
+  }, [gameId]);
 
-      <AppText variant="subtitle" tone="warning" style={{ marginBottom: spacing.xs }}>
-        Status: {game?.status} | Nota: {game?.rating > 0 ? `★ ${Number(game.rating).toFixed(1)}/5.0` : 'Sem nota'}
-      </AppText>
+  useLayoutEffect(() => {
+    if (data?.game) navigation.setOptions({ title: data.game.title });
+  }, [navigation, data?.game]);
 
-      <AppText variant="caption" tone="muted" style={{ marginBottom: spacing.md }}>
-        Tempo jogado: {game?.playtime ? `${game.playtime}h` : '0h'}
-      </AppText>
+  // Re-imports IGDB data older than 30 days in the background; the page shows the stored copy meanwhile
+  const isStale = data?.game ? isGameStale(data.game) : false;
+  useEffect(() => {
+    if (!isStale) return;
+    importIgdbGame(data.game.igdb_id)
+      .then((freshGame) => setData((current) => ({ ...current, game: freshGame })))
+      .catch((err) => console.warn('[GameDetails] Background refresh failed:', err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStale]);
 
-      {game?.review_text ? (
-        <AppText
-          variant="body"
-          style={[styles.centerText, { marginBottom: spacing.md }]}
+  if (isLoading) return <LoadingState message="Carregando jogo..." />;
+  if (error && !data) return <ErrorState message={error} onRetry={refresh} />;
+
+  const { game, reviews } = data;
+  const ownEntry = reviews.find((review) => review.user_id === userId);
+  const communityReviews = reviews.filter((review) => review.user_id !== userId);
+  const averageRating = computeAverageRating(reviews);
+  const completedCount = reviews.filter((review) => review.status === 'completed').length;
+
+  const openForm = () => navigation.navigate('GameForm', { game, entry: ownEntry });
+
+  const header = (
+    <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
+      <View style={[styles.hero, { gap: spacing.md }]}>
+        <GameCover uri={game.cover_url} width={120} />
+        <View style={[styles.flex, { gap: spacing.xs }]}>
+          <AppText variant="title">{game.title}</AppText>
+          <AppText variant="body" tone="muted">
+            {[game.release_year, game.developer].filter(Boolean).join(' · ') || 'Sem informações extras'}
+          </AppText>
+          {game.genres ? (
+            <AppText variant="caption" tone="muted">
+              {game.genres}
+            </AppText>
+          ) : null}
+          {game.platforms ? (
+            <AppText variant="caption" tone="primary">
+              {game.platforms}
+            </AppText>
+          ) : null}
+          <Badge label={GAME_SOURCE_LABEL[game.source] ?? game.source} tone="neutral" />
+        </View>
+      </View>
+
+      {game.summary ? (
+        <Pressable
+          onPress={() => setIsSummaryExpanded((expanded) => !expanded)}
+          accessibilityRole="button"
+          accessibilityLabel={isSummaryExpanded ? 'Recolher descrição' : 'Expandir descrição'}
         >
-          "{game.review_text}"
-        </AppText>
+          <AppText
+            variant="body"
+            tone="muted"
+            numberOfLines={isSummaryExpanded ? undefined : SUMMARY_PREVIEW_LINES}
+          >
+            {game.summary}
+          </AppText>
+          <AppText variant="caption" tone="primary">
+            {isSummaryExpanded ? 'Ver menos' : 'Ver mais'}
+          </AppText>
+        </Pressable>
       ) : null}
 
-      <AppText
-        variant="caption"
-        tone="muted"
-        style={[styles.centerText, { marginBottom: spacing.lg }]}
+      <View
+        style={[
+          styles.statsBar,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+            borderRadius: radius.md,
+            padding: spacing.sm,
+          },
+        ]}
       >
-        Na Fase 5, esta tela exibirá o painel detalhado completo da análise.
-      </AppText>
+        <StatItem label="Jogadores" value={reviews.length} />
+        <StatItem label="Zeraram" value={completedCount} />
+        <StatItem
+          label="Comunidade"
+          value={averageRating != null ? `★ ${averageRating.toFixed(1)}` : '—'}
+        />
+        <StatItem
+          label="Crítica"
+          value={game.critic_rating != null ? `★ ${Number(game.critic_rating).toFixed(1)}` : '—'}
+        />
+      </View>
 
-      <Button
-        label="Editar ou Excluir Avaliação"
-        onPress={() => navigation.navigate('GameForm', { game })}
-      />
+      {ownEntry ? (
+        <View style={{ gap: spacing.sm }}>
+          <AppText variant="caption" tone="muted" style={styles.sectionTitle}>
+            SUA AVALIAÇÃO
+          </AppText>
+          <ActivityCard
+            entry={ownEntry}
+            showGame={false}
+            onPressProfile={() => navigation.navigate('Profile', { userId })}
+          />
+          <Button label="Editar minha avaliação" variant="secondary" onPress={openForm} />
+        </View>
+      ) : (
+        <Button label="+ Adicionar à minha lista" onPress={openForm} />
+      )}
+
+      <AppText variant="caption" tone="muted" style={[styles.sectionTitle, { marginTop: spacing.sm }]}>
+        COMUNIDADE ({communityReviews.length})
+      </AppText>
+    </View>
+  );
+
+  return (
+    <FlatList
+      style={{ backgroundColor: colors.background }}
+      data={communityReviews}
+      keyExtractor={(item) => String(item.id)}
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xxl }}
+      ListHeaderComponent={header}
+      refreshControl={
+        <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.primary} />
+      }
+      renderItem={({ item }) => (
+        <ActivityCard
+          entry={item}
+          showGame={false}
+          onPressProfile={() => navigation.navigate('Profile', { userId: item.user_id })}
+        />
+      )}
+      ListEmptyComponent={
+        <AppText variant="body" tone="muted">
+          Ninguém mais registrou este jogo ainda.
+        </AppText>
+      }
+    />
+  );
+}
+
+function StatItem({ label, value }) {
+  return (
+    <View style={styles.statItem}>
+      <AppText variant="subtitle" tone="primary">
+        {value}
+      </AppText>
+      <AppText variant="caption" tone="muted">
+        {label}
+      </AppText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
-    justifyContent: 'center',
+  },
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  statsBar: {
+    flexDirection: 'row',
+    borderWidth: 1,
+  },
+  statItem: {
+    flex: 1,
     alignItems: 'center',
   },
-  centerText: {
-    textAlign: 'center',
+  sectionTitle: {
+    fontWeight: '700',
+    letterSpacing: 1,
   },
 });
