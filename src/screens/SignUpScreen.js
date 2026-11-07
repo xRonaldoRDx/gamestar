@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import AppText from '../components/AppText';
 import Button from '../components/Button';
 import TextField from '../components/TextField';
@@ -7,7 +8,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../theme/ThemeProvider';
 
 const MIN_PASSWORD_LENGTH = 6;
-const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
@@ -45,10 +45,8 @@ export default function SignUpScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
         style={styles.scrollView}
@@ -131,7 +129,7 @@ export default function SignUpScreen() {
           disabled={isSubmitting}
         />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 

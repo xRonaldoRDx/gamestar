@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import AppText from '../components/AppText';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
@@ -18,7 +17,6 @@ import { createGameRequest, getMyGameRequests, REQUEST_STATUS } from '../service
 import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
-const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 
 export default function RequestGameScreen({ route, navigation }) {
   const { userId } = useAuth();
@@ -54,10 +52,8 @@ export default function RequestGameScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
         style={styles.scrollView}
@@ -157,7 +153,7 @@ export default function RequestGameScreen({ route, navigation }) {
           );
         })}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 

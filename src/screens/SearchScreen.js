@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../components/AppText';
 import Button from '../components/Button';
@@ -58,9 +59,8 @@ export default function SearchScreen({ navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View
         style={[
@@ -117,7 +117,7 @@ export default function SearchScreen({ navigation }) {
           }
         />
       ) : null}
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 

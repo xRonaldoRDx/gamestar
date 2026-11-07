@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import AppText from '../components/AppText';
 import Button from '../components/Button';
 import GameSearchResults from '../components/GameSearchResults';
@@ -139,9 +140,8 @@ export default function AdminRequestScreen({ route, navigation }) {
   );
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {isLoading ? <LoadingState message="Procurando jogos..." /> : null}
       {!isLoading && error ? <ErrorState message={error} /> : null}
@@ -161,7 +161,7 @@ export default function AdminRequestScreen({ route, navigation }) {
           ListFooterComponent={footer}
         />
       ) : null}
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { Alert, ScrollView, StyleSheet } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import AppText from '../components/AppText';
 import Button from '../components/Button';
 import TextField from '../components/TextField';
@@ -10,7 +11,6 @@ import { useTheme } from '../theme/ThemeProvider';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_RELEASE_YEAR = 1950;
-const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 
 export default function NewGameScreen({ route, navigation }) {
   const { colors, spacing } = useTheme();
@@ -76,10 +76,8 @@ export default function NewGameScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
         style={styles.scrollView}
@@ -168,7 +166,7 @@ export default function NewGameScreen({ route, navigation }) {
           disabled={isSaving}
         />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 

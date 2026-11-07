@@ -2,13 +2,12 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import AppText from '../components/AppText';
@@ -26,7 +25,6 @@ import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
 const MAX_BIO_LENGTH = 160;
-const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 const UPLOAD_ERROR_MESSAGE = 'Não foi possível enviar a imagem. Tente novamente.';
 const REMOVE_ERROR_MESSAGE = 'Não foi possível remover a foto. Tente novamente.';
 
@@ -175,10 +173,8 @@ export default function EditProfileScreen({ route, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
         style={styles.scrollView}
@@ -284,7 +280,7 @@ export default function EditProfileScreen({ route, navigation }) {
           disabled={isBusy}
         />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 

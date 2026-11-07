@@ -1,14 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import AppText from '../components/AppText';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
@@ -22,7 +21,6 @@ import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
 const STATUS_OPTIONS = STATUS_KEYS.map((key) => ({ value: key, label: GAME_STATUS[key].label }));
-const HEADER_KEYBOARD_OFFSET = Platform.select({ ios: 96, android: 84, default: 0 });
 const SCROLL_TO_BOTTOM_DELAY_MS = 150;
 
 function getPlatformOptions(gamePlatforms, savedPlatform) {
@@ -136,10 +134,8 @@ export default function GameFormScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={HEADER_KEYBOARD_OFFSET}
     >
       <ScrollView
         ref={scrollViewRef}
@@ -381,7 +377,7 @@ export default function GameFormScreen({ route, navigation }) {
           ) : null}
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 

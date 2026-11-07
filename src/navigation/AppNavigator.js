@@ -51,6 +51,8 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         ...headerOptions,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        // On Android the tab bar would otherwise sit on top of the keyboard
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarIcon: ({ focused, color, size }) => {

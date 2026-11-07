@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
+import KeyboardAwareView from '../components/KeyboardAwareView';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../components/AppText';
 import Avatar from '../components/Avatar';
@@ -101,9 +100,8 @@ export default function PeopleScreen({ navigation }) {
   }, [searchQuery, userId]);
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={{ padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <TextField
@@ -147,7 +145,7 @@ export default function PeopleScreen({ navigation }) {
           }
         />
       ) : null}
-    </KeyboardAvoidingView>
+    </KeyboardAwareView>
   );
 }
 
