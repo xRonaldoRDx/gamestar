@@ -331,6 +331,49 @@ create policy "game_requests_delete" on public.game_requests
   );
 
 -- -------------------------------------------------------------
+-- REVIEW VOTES (Reddit-style upvote / downvote on user_games)
+-- -------------------------------------------------------------
+create table if not exists public.review_votes (
+  id bigint generated always as identity primary key,
+  review_id bigint not null references public.user_games (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade default auth.uid(),
+  vote_type smallint not null check (vote_type in (-1, 1)),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (review_id, user_id)
+);
+
+create index if not exists review_votes_review_idx on public.review_votes (review_id);
+create index if not exists review_votes_user_idx on public.review_votes (user_id);
+
+drop trigger if exists review_votes_touch on public.review_votes;
+create trigger review_votes_touch
+  before update on public.review_votes
+  for each row execute function public.touch_updated_at();
+
+alter table public.review_votes enable row level security;
+
+drop policy if exists "review_votes_select" on public.review_votes;
+create policy "review_votes_select" on public.review_votes
+  for select to authenticated using (true);
+
+drop policy if exists "review_votes_insert_own" on public.review_votes;
+create policy "review_votes_insert_own" on public.review_votes
+  for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "review_votes_update_own" on public.review_votes;
+create policy "review_votes_update_own" on public.review_votes
+  for update to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "review_votes_delete_own" on public.review_votes;
+create policy "review_votes_delete_own" on public.review_votes
+  for delete to authenticated
+  using ((select auth.uid()) = user_id);
+
+-- -------------------------------------------------------------
 -- MAKING SOMEONE AN ADMIN
 -- Run once, replacing the username (not part of the automatic setup):
 --   update public.profiles set is_admin = true where username = 'seu_usuario';

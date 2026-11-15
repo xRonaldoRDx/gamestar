@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { buildCacheBustedAvatarUrl, normalizeProfileRow } from './profiles';
+import { fetchVotesForReviews, VOTE_TYPE } from './votes';
 
 const ENTRY_FIELDS = `
   id, user_id, game_id, status, rating, review, playtime, platform, created_at, updated_at,
@@ -32,13 +33,41 @@ function normalizeEntryProfile(rawProfile, timestamp) {
   };
 }
 
-function normalizeLibraryEntry(entry, timestamp = Date.now()) {
+function normalizeLibraryEntry(entry, timestamp = Date.now(), voteSummary = null) {
   if (!entry) return entry;
   return {
     ...entry,
     rating: parseNumericRating(entry.rating),
     profile: normalizeEntryProfile(entry.profile, timestamp),
+    upvotes: voteSummary?.upvotes ?? entry.upvotes ?? 0,
+    downvotes: voteSummary?.downvotes ?? entry.downvotes ?? 0,
+    voteScore: voteSummary?.voteScore ?? entry.voteScore ?? 0,
+    userVote: voteSummary?.userVote ?? entry.userVote ?? VOTE_TYPE.NONE,
   };
+}
+
+async function resolveCurrentUserId(explicitUserId) {
+  if (explicitUserId) return explicitUserId;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function attachVoteSummaries(entries, currentUserId) {
+  const safeEntries = entries ?? [];
+  const fetchTimestamp = Date.now();
+  if (safeEntries.length === 0) return [];
+
+  const resolvedUserId = await resolveCurrentUserId(currentUserId);
+  const reviewIds = safeEntries.map((entry) => entry.id);
+  const votesByReviewId = await fetchVotesForReviews(reviewIds, resolvedUserId);
+
+  return safeEntries.map((entry) =>
+    normalizeLibraryEntry(entry, fetchTimestamp, votesByReviewId[Number(entry.id)])
+  );
 }
 
 export async function getUserLibrary(userId) {
@@ -49,11 +78,10 @@ export async function getUserLibrary(userId) {
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
-  const fetchTimestamp = Date.now();
-  return (data ?? []).map((entry) => normalizeLibraryEntry(entry, fetchTimestamp));
+  return attachVoteSummaries(data, null);
 }
 
-export async function getGameReviews(gameId) {
+export async function getGameReviews(gameId, currentUserId) {
   const { data, error } = await supabase
     .from('user_games')
     .select(ENTRY_FIELDS)
@@ -62,8 +90,7 @@ export async function getGameReviews(gameId) {
     .limit(50);
 
   if (error) throw error;
-  const fetchTimestamp = Date.now();
-  return (data ?? []).map((entry) => normalizeLibraryEntry(entry, fetchTimestamp));
+  return attachVoteSummaries(data, currentUserId);
 }
 
 export async function saveLibraryEntry({ id, game_id, status, rating, review, playtime, platform }) {
@@ -108,6 +135,5 @@ export async function getActivityFeed(userId) {
     .limit(50);
 
   if (error) throw error;
-  const fetchTimestamp = Date.now();
-  return (data ?? []).map((entry) => normalizeLibraryEntry(entry, fetchTimestamp));
+  return attachVoteSummaries(data, userId);
 }

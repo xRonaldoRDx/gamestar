@@ -31,9 +31,12 @@ export default function GameDetailsScreen({ route, navigation }) {
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
   const { data, setData, isLoading, isRefreshing, error, refresh } = useFocusLoader(async () => {
-    const [game, reviews] = await Promise.all([getGameById(gameId), getGameReviews(gameId)]);
+    const [game, reviews] = await Promise.all([
+      getGameById(gameId),
+      getGameReviews(gameId, userId),
+    ]);
     return { game, reviews: Array.isArray(reviews) ? reviews : [] };
-  }, [gameId]);
+  }, [gameId, userId]);
 
   useLayoutEffect(() => {
     if (data?.game) navigation.setOptions({ title: data.game.title });

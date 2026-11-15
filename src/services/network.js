@@ -1,13 +1,46 @@
-import NetInfo from '@react-native-community/netinfo';
+import { useEffect, useState } from 'react';
+import NetInfo, { useNetInfo } from '@react-native-community/netinfo';
 
 const REQUEST_TIMEOUT_MS = 6500;
 
-export async function ensureNetworkConnection() {
-  const netState = await NetInfo.fetch();
-  const isOffline =
-    netState.isConnected === false || netState.isInternetReachable === false;
+export function isNetStateConnected(netState) {
+  if (!netState) return true;
+  if (netState.isConnected === false) return false;
+  if (netState.isInternetReachable === false) return false;
+  return true;
+}
 
-  if (isOffline) {
+export async function checkIsOnline() {
+  const netState = await NetInfo.fetch();
+  return isNetStateConnected(netState);
+}
+
+export function useNetworkStatus() {
+  const netInfo = useNetInfo();
+  const [isOnline, setIsOnline] = useState(() => isNetStateConnected(netInfo));
+
+  useEffect(() => {
+    setIsOnline(isNetStateConnected(netInfo));
+  }, [netInfo.isConnected, netInfo.isInternetReachable]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOnline(isNetStateConnected(state));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  return {
+    isOnline,
+    isConnected: netInfo.isConnected,
+    isInternetReachable: netInfo.isInternetReachable,
+  };
+}
+
+export async function ensureNetworkConnection() {
+  const isOnline = await checkIsOnline();
+
+  if (!isOnline) {
     throw new Error('Sem conexão com a internet. Verifique sua rede e tente novamente.');
   }
 }

@@ -7,6 +7,7 @@ import Badge from './Badge';
 import GameCover from './GameCover';
 import RatingLabel from './RatingLabel';
 import { useAuth } from '../contexts/AuthContext';
+import { useReviewVoteViewModel } from '../hooks/useReviewVoteViewModel';
 import { GAME_STATUS } from '../services/games';
 import { buildCacheBustedAvatarUrl } from '../services/profiles';
 import { useTheme } from '../theme/ThemeProvider';
@@ -35,6 +36,20 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
   const { userId: currentUserId, profile: currentUserProfile } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const {
+    voteScore,
+    isUpvoted,
+    isDownvoted,
+    isPendingSync,
+    handleUpvote,
+    handleDownvote,
+  } = useReviewVoteViewModel({
+    reviewId: entry.id,
+    userId: currentUserId,
+    initialScore: entry.voteScore ?? 0,
+    initialUserVote: entry.userVote ?? 0,
+  });
+
   const isOwnActivity = entry.user_id === currentUserId && Boolean(currentUserProfile);
   const rawAuthorProfile = isOwnActivity
     ? { ...entry.profile, ...currentUserProfile }
@@ -57,6 +72,10 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
     authorProfile?.displayName || authorProfile?.display_name || authorProfile?.username;
   const reviewText = (entry.review || '').trim();
   const hasReview = Boolean(reviewText);
+
+  const upvoteColor = isUpvoted ? colors.primary : colors.textMuted;
+  const downvoteColor = isDownvoted ? colors.danger : colors.textMuted;
+  const scoreTone = isUpvoted ? 'primary' : isDownvoted ? 'danger' : 'muted';
 
   function handleToggleExpand() {
     setIsExpanded((previousState) => !previousState);
@@ -134,26 +153,102 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
         </View>
       </View>
 
-      {hasReview ? (
-        <View style={{ gap: spacing.xs }}>
-          {isExpanded ? (
-            <View
-              style={[
-                styles.reviewBox,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  borderRadius: radius.sm,
-                  padding: spacing.sm,
-                },
-              ]}
-            >
-              <AppText variant="body" tone="muted">
-                “{reviewText}”
-              </AppText>
+      {hasReview && isExpanded ? (
+        <View
+          style={[
+            styles.reviewBox,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderRadius: radius.sm,
+              padding: spacing.sm,
+            },
+          ]}
+        >
+          <AppText variant="body" tone="muted">
+            “{reviewText}”
+          </AppText>
+        </View>
+      ) : null}
+
+      <View style={[styles.footerRow, { marginTop: spacing.xs }]}>
+        <View
+          style={[
+            styles.voteContainer,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isUpvoted
+                ? colors.primary
+                : isDownvoted
+                ? colors.danger
+                : colors.border,
+              borderRadius: radius.pill,
+            },
+          ]}
+        >
+          <Pressable
+            onPress={handleUpvote}
+            disabled={!currentUserId}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isUpvoted }}
+            accessibilityLabel="Upvote na avaliação"
+            style={({ pressed }) => [
+              styles.voteButton,
+              {
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.xs,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Ionicons
+              name={isUpvoted ? 'arrow-up' : 'arrow-up-outline'}
+              size={16}
+              color={upvoteColor}
+            />
+          </Pressable>
+
+          <AppText variant="caption" tone={scoreTone} style={styles.voteScoreText}>
+            {voteScore}
+          </AppText>
+
+          <Pressable
+            onPress={handleDownvote}
+            disabled={!currentUserId}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isDownvoted }}
+            accessibilityLabel="Downvote na avaliação"
+            style={({ pressed }) => [
+              styles.voteButton,
+              {
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.xs,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Ionicons
+              name={isDownvoted ? 'arrow-down' : 'arrow-down-outline'}
+              size={16}
+              color={downvoteColor}
+            />
+          </Pressable>
+
+          {isPendingSync ? (
+            <View style={{ paddingRight: spacing.sm }}>
+              <Ionicons
+                name="cloud-offline-outline"
+                size={13}
+                color={colors.warning}
+                accessibilityLabel="Voto salvo offline aguardando sincronização"
+              />
             </View>
           ) : null}
+        </View>
 
+        {hasReview ? (
           <Pressable
             onPress={handleToggleExpand}
             hitSlop={6}
@@ -177,8 +272,8 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
               color={colors.primary}
             />
           </Pressable>
-        </View>
-      ) : null}
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -204,10 +299,29 @@ const styles = StyleSheet.create({
   reviewBox: {
     borderWidth: 1,
   },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  voteContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  voteButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voteScoreText: {
+    fontWeight: '700',
+    minWidth: 20,
+    textAlign: 'center',
+  },
   expandToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     gap: 4,
   },
   expandToggleText: {
