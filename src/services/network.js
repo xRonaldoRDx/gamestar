@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
-import NetInfo, { useNetInfo } from '@react-native-community/netinfo';
+import NetInfo from '@react-native-community/netinfo';
 
 const REQUEST_TIMEOUT_MS = 6500;
+
+let cachedOnlineState = true;
+let isListenerInitialized = false;
+const networkSubscribers = new Set();
 
 export function isNetStateConnected(netState) {
   if (!netState) return true;
@@ -10,30 +14,63 @@ export function isNetStateConnected(netState) {
   return true;
 }
 
+function ensureNetworkMonitorInitialized() {
+  if (isListenerInitialized) return;
+  isListenerInitialized = true;
+
+  NetInfo.fetch()
+    .then((state) => {
+      cachedOnlineState = isNetStateConnected(state);
+    })
+    .catch(() => {});
+
+  NetInfo.addEventListener((state) => {
+    const nextOnline = isNetStateConnected(state);
+    if (nextOnline !== cachedOnlineState) {
+      cachedOnlineState = nextOnline;
+      networkSubscribers.forEach((listener) => {
+        try {
+          listener(cachedOnlineState);
+        } catch {}
+      });
+    }
+  });
+}
+
+export function getIsOnlineSync() {
+  ensureNetworkMonitorInitialized();
+  return cachedOnlineState;
+}
+
+export function subscribeNetworkStatus(listener) {
+  ensureNetworkMonitorInitialized();
+  networkSubscribers.add(listener);
+  return () => {
+    networkSubscribers.delete(listener);
+  };
+}
+
 export async function checkIsOnline() {
+  ensureNetworkMonitorInitialized();
   const netState = await NetInfo.fetch();
-  return isNetStateConnected(netState);
+  cachedOnlineState = isNetStateConnected(netState);
+  return cachedOnlineState;
 }
 
 export function useNetworkStatus() {
-  const netInfo = useNetInfo();
-  const [isOnline, setIsOnline] = useState(() => isNetStateConnected(netInfo));
+  const [isOnline, setIsOnline] = useState(() => getIsOnlineSync());
 
   useEffect(() => {
-    setIsOnline(isNetStateConnected(netInfo));
-  }, [netInfo.isConnected, netInfo.isInternetReachable]);
-
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      setIsOnline(isNetStateConnected(state));
+    setIsOnline(getIsOnlineSync());
+    return subscribeNetworkStatus((nextOnline) => {
+      setIsOnline(nextOnline);
     });
-    return () => unsubscribe();
   }, []);
 
   return {
     isOnline,
-    isConnected: netInfo.isConnected,
-    isInternetReachable: netInfo.isInternetReachable,
+    isConnected: isOnline,
+    isInternetReachable: isOnline,
   };
 }
 

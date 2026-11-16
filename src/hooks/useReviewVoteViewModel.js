@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { checkIsOnline, useNetworkStatus } from '../services/network';
+import { checkIsOnline, getIsOnlineSync } from '../services/network';
 import {
   calculateOptimisticVoteState,
   enqueueOfflineVote,
@@ -52,23 +52,16 @@ export function useReviewVoteViewModel({
   initialScore = 0,
   initialUserVote = VOTE_TYPE.NONE,
 }) {
-  const { isOnline } = useNetworkStatus();
+  const [voteState, setVoteState] = useState(() =>
+    resolveInitialVoteState({
+      userId,
+      reviewId,
+      initialScore,
+      initialUserVote,
+    })
+  );
 
-  const initialState = resolveInitialVoteState({
-    userId,
-    reviewId,
-    initialScore,
-    initialUserVote,
-  });
-
-  const [voteScore, setVoteScore] = useState(initialState.voteScore);
-  const [userVote, setUserVote] = useState(initialState.userVote);
-  const [isPendingSync, setIsPendingSync] = useState(initialState.isPendingSync);
-
-  const voteStateRef = useRef({
-    voteScore: initialState.voteScore,
-    userVote: initialState.userVote,
-  });
+  const voteStateRef = useRef(voteState);
 
   useEffect(() => {
     const resolved = resolveInitialVoteState({
@@ -77,32 +70,35 @@ export function useReviewVoteViewModel({
       initialScore,
       initialUserVote,
     });
-    voteStateRef.current = {
-      voteScore: resolved.voteScore,
-      userVote: resolved.userVote,
-    };
-    setVoteScore(resolved.voteScore);
-    setUserVote(resolved.userVote);
-    setIsPendingSync(resolved.isPendingSync);
+    voteStateRef.current = resolved;
+    setVoteState((prev) => {
+      if (
+        prev.voteScore === resolved.voteScore &&
+        prev.userVote === resolved.userVote &&
+        prev.isPendingSync === resolved.isPendingSync
+      ) {
+        return prev;
+      }
+      return resolved;
+    });
   }, [reviewId, userId, initialScore, initialUserVote]);
 
   useEffect(() => {
     if (!userId || !reviewId) return undefined;
 
-    return subscribeVoteSync((event) => {
-      if (
-        String(event.userId) === String(userId) &&
-        Number(event.reviewId) === Number(reviewId)
-      ) {
-        setIsPendingSync(Boolean(event.isPendingSync));
+    return subscribeVoteSync(reviewId, (event) => {
+      if (String(event.userId) === String(userId)) {
+        const nextPending = Boolean(event.isPendingSync);
+        voteStateRef.current = {
+          ...voteStateRef.current,
+          isPendingSync: nextPending,
+        };
+        setVoteState((prev) =>
+          prev.isPendingSync === nextPending ? prev : { ...prev, isPendingSync: nextPending }
+        );
       }
     });
   }, [userId, reviewId]);
-
-  useEffect(() => {
-    if (!isOnline || !userId) return;
-    flushOfflineVoteQueue(userId);
-  }, [isOnline, userId]);
 
   const handleVote = useCallback(
     async (targetVoteType) => {
@@ -115,12 +111,13 @@ export function useReviewVoteViewModel({
         targetVoteType,
       });
 
-      voteStateRef.current = {
+      const optimisticState = {
         voteScore: nextScore,
         userVote: nextUserVote,
+        isPendingSync: voteStateRef.current.isPendingSync,
       };
-      setVoteScore(nextScore);
-      setUserVote(nextUserVote);
+      voteStateRef.current = optimisticState;
+      setVoteState(optimisticState);
 
       saveCachedReviewVoteState({
         userId,
@@ -129,7 +126,7 @@ export function useReviewVoteViewModel({
         userVote: nextUserVote,
       });
 
-      const currentlyOnline = isOnline && (await checkIsOnline());
+      const currentlyOnline = getIsOnlineSync() && (await checkIsOnline());
 
       if (!currentlyOnline) {
         enqueueOfflineVote({
@@ -156,7 +153,7 @@ export function useReviewVoteViewModel({
         });
       }
     },
-    [isOnline, reviewId, userId]
+    [reviewId, userId]
   );
 
   const handleUpvote = useCallback(() => {
@@ -168,12 +165,11 @@ export function useReviewVoteViewModel({
   }, [handleVote]);
 
   return {
-    voteScore,
-    userVote,
-    isUpvoted: userVote === VOTE_TYPE.UPVOTE,
-    isDownvoted: userVote === VOTE_TYPE.DOWNVOTE,
-    isPendingSync,
-    isOnline,
+    voteScore: voteState.voteScore,
+    userVote: voteState.userVote,
+    isUpvoted: voteState.userVote === VOTE_TYPE.UPVOTE,
+    isDownvoted: voteState.userVote === VOTE_TYPE.DOWNVOTE,
+    isPendingSync: voteState.isPendingSync,
     handleUpvote,
     handleDownvote,
   };

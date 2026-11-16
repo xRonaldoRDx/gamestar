@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AppText from './AppText';
-import { buildCacheBustedAvatarUrl } from '../services/profiles';
 import { useTheme } from '../theme/ThemeProvider';
 
 export function isValidAvatarUri(avatarUrl) {
@@ -16,21 +15,12 @@ export default function Avatar({ profile, size = 44 }) {
   const [hasImageError, setHasImageError] = useState(false);
 
   const candidateUri = profile?.avatarUrl ?? profile?.avatar_url ?? null;
-  const rawAvatarUrl = isValidAvatarUri(candidateUri) ? candidateUri.trim() : null;
-
-  const cacheBustedUri = useMemo(() => {
-    if (!rawAvatarUrl) return null;
-    if (rawAvatarUrl.includes('?t=') || rawAvatarUrl.includes('&t=')) {
-      return rawAvatarUrl;
-    }
-    return buildCacheBustedAvatarUrl(rawAvatarUrl);
-  }, [rawAvatarUrl]);
-
-  const shouldRenderImage = Boolean(cacheBustedUri) && !hasImageError;
+  const avatarUri = isValidAvatarUri(candidateUri) ? candidateUri.trim() : null;
+  const shouldRenderImage = Boolean(avatarUri) && !hasImageError;
 
   useEffect(() => {
     setHasImageError(false);
-  }, [cacheBustedUri]);
+  }, [avatarUri]);
 
   const displayName =
     typeof profile?.displayName === 'string' && profile.displayName.trim()
@@ -58,8 +48,7 @@ export default function Avatar({ profile, size = 44 }) {
     >
       {shouldRenderImage ? (
         <Image
-          key={cacheBustedUri}
-          source={{ uri: cacheBustedUri }}
+          source={{ uri: avatarUri }}
           style={[
             styles.avatarImage,
             {

@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { subscribeNetworkStatus } from './network';
 import { supabase } from './supabase';
 
 export const VOTE_TYPE = {
@@ -12,8 +13,32 @@ const FALLBACK_QUEUE_KEY = 'gamestar:offline_vote_queue';
 const FALLBACK_CACHE_KEY = 'gamestar:review_votes_cache';
 
 let databaseInstance = null;
+let isMemoryHydrated = false;
 let isSyncingQueue = false;
-const syncListeners = new Set();
+let isNetworkSyncRegistered = false;
+
+const memoryVoteCache = new Map();
+const memoryPendingQueue = new Map();
+const syncListenersByReviewId = new Map();
+
+function buildCompositeKey(userId, reviewId) {
+  return `${String(userId)}:${Number(reviewId)}`;
+}
+
+function readFallbackMap(storageKey) {
+  try {
+    const raw = globalThis.localStorage?.getItem(storageKey);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeFallbackMap(storageKey, value) {
+  try {
+    globalThis.localStorage?.setItem(storageKey, JSON.stringify(value));
+  } catch {}
+}
 
 function getDatabase() {
   if (databaseInstance) return databaseInstance;
@@ -44,34 +69,96 @@ function getDatabase() {
   }
 }
 
-function readFallbackMap(storageKey) {
-  try {
-    const raw = globalThis.localStorage?.getItem(storageKey);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
+function ensureMemoryHydrated() {
+  if (isMemoryHydrated) return;
+  isMemoryHydrated = true;
+
+  if (!isNetworkSyncRegistered) {
+    isNetworkSyncRegistered = true;
+    subscribeNetworkStatus((isOnline) => {
+      if (isOnline) {
+        flushOfflineVoteQueue();
+      }
+    });
   }
+
+  const db = getDatabase();
+  if (db) {
+    try {
+      const cachedRows = db.getAllSync(
+        `SELECT review_id, user_id, vote_score, user_vote, updated_at FROM review_votes_cache`
+      );
+      cachedRows.forEach((row) => {
+        const key = buildCompositeKey(row.user_id, row.review_id);
+        memoryVoteCache.set(key, {
+          reviewId: Number(row.review_id),
+          userId: String(row.user_id),
+          voteScore: Number(row.vote_score),
+          userVote: Number(row.user_vote),
+          updatedAt: Number(row.updated_at),
+        });
+      });
+
+      const queueRows = db.getAllSync(
+        `SELECT user_id, review_id, vote_type, updated_at FROM offline_vote_queue`
+      );
+      queueRows.forEach((row) => {
+        const key = buildCompositeKey(row.user_id, row.review_id);
+        memoryPendingQueue.set(key, {
+          user_id: String(row.user_id),
+          review_id: Number(row.review_id),
+          vote_type: Number(row.vote_type),
+          updated_at: Number(row.updated_at),
+        });
+      });
+      return;
+    } catch {}
+  }
+
+  const fallbackCache = readFallbackMap(FALLBACK_CACHE_KEY);
+  Object.entries(fallbackCache).forEach(([key, entry]) => {
+    memoryVoteCache.set(key, {
+      reviewId: Number(entry.review_id),
+      userId: String(entry.user_id),
+      voteScore: Number(entry.vote_score),
+      userVote: Number(entry.user_vote),
+      updatedAt: Number(entry.updated_at),
+    });
+  });
+
+  const fallbackQueue = readFallbackMap(FALLBACK_QUEUE_KEY);
+  Object.entries(fallbackQueue).forEach(([key, entry]) => {
+    memoryPendingQueue.set(key, {
+      user_id: String(entry.user_id),
+      review_id: Number(entry.review_id),
+      vote_type: Number(entry.vote_type),
+      updated_at: Number(entry.updated_at),
+    });
+  });
 }
 
-function writeFallbackMap(storageKey, value) {
-  try {
-    globalThis.localStorage?.setItem(storageKey, JSON.stringify(value));
-  } catch {}
-}
+export function subscribeVoteSync(reviewId, listener) {
+  const numericReviewId = Number(reviewId);
+  let reviewListeners = syncListenersByReviewId.get(numericReviewId);
+  if (!reviewListeners) {
+    reviewListeners = new Set();
+    syncListenersByReviewId.set(numericReviewId, reviewListeners);
+  }
+  reviewListeners.add(listener);
 
-function buildCompositeKey(userId, reviewId) {
-  return `${String(userId)}:${Number(reviewId)}`;
-}
-
-export function subscribeVoteSync(listener) {
-  syncListeners.add(listener);
   return () => {
-    syncListeners.delete(listener);
+    reviewListeners.delete(listener);
+    if (reviewListeners.size === 0) {
+      syncListenersByReviewId.delete(numericReviewId);
+    }
   };
 }
 
 function notifyVoteSyncListeners(payload) {
-  syncListeners.forEach((listener) => {
+  const reviewListeners = syncListenersByReviewId.get(Number(payload.reviewId));
+  if (!reviewListeners) return;
+
+  reviewListeners.forEach((listener) => {
     try {
       listener(payload);
     } catch {}
@@ -103,13 +190,23 @@ export function calculateOptimisticVoteState({
 
 export function saveCachedReviewVoteState({ userId, reviewId, voteScore, userVote }) {
   if (!userId || !reviewId) return;
+  ensureMemoryHydrated();
 
   const numericReviewId = Number(reviewId);
   const numericScore = Number.isFinite(Number(voteScore)) ? Number(voteScore) : 0;
   const numericVote = Number.isFinite(Number(userVote)) ? Number(userVote) : VOTE_TYPE.NONE;
   const timestamp = Date.now();
-  const db = getDatabase();
+  const compositeKey = buildCompositeKey(userId, numericReviewId);
 
+  memoryVoteCache.set(compositeKey, {
+    reviewId: numericReviewId,
+    userId: String(userId),
+    voteScore: numericScore,
+    userVote: numericVote,
+    updatedAt: timestamp,
+  });
+
+  const db = getDatabase();
   if (db) {
     db.runSync(
       `INSERT OR REPLACE INTO review_votes_cache (review_id, user_id, vote_score, user_vote, updated_at)
@@ -120,7 +217,7 @@ export function saveCachedReviewVoteState({ userId, reviewId, voteScore, userVot
   }
 
   const cacheMap = readFallbackMap(FALLBACK_CACHE_KEY);
-  cacheMap[buildCompositeKey(userId, numericReviewId)] = {
+  cacheMap[compositeKey] = {
     review_id: numericReviewId,
     user_id: String(userId),
     vote_score: numericScore,
@@ -132,48 +229,27 @@ export function saveCachedReviewVoteState({ userId, reviewId, voteScore, userVot
 
 export function getCachedReviewVoteState({ userId, reviewId }) {
   if (!userId || !reviewId) return null;
-
-  const numericReviewId = Number(reviewId);
-  const db = getDatabase();
-
-  if (db) {
-    const row = db.getFirstSync(
-      `SELECT review_id, user_id, vote_score, user_vote, updated_at
-       FROM review_votes_cache
-       WHERE review_id = ? AND user_id = ?`,
-      [numericReviewId, String(userId)]
-    );
-    if (!row) return null;
-    return {
-      reviewId: Number(row.review_id),
-      userId: String(row.user_id),
-      voteScore: Number(row.vote_score),
-      userVote: Number(row.user_vote),
-      updatedAt: Number(row.updated_at),
-    };
-  }
-
-  const cacheMap = readFallbackMap(FALLBACK_CACHE_KEY);
-  const entry = cacheMap[buildCompositeKey(userId, numericReviewId)];
-  if (!entry) return null;
-
-  return {
-    reviewId: Number(entry.review_id),
-    userId: String(entry.user_id),
-    voteScore: Number(entry.vote_score),
-    userVote: Number(entry.user_vote),
-    updatedAt: Number(entry.updated_at),
-  };
+  ensureMemoryHydrated();
+  return memoryVoteCache.get(buildCompositeKey(userId, reviewId)) ?? null;
 }
 
 export function enqueueOfflineVote({ userId, reviewId, voteType }) {
   if (!userId || !reviewId) return;
+  ensureMemoryHydrated();
 
   const numericReviewId = Number(reviewId);
   const numericVoteType = Number(voteType);
   const timestamp = Date.now();
-  const db = getDatabase();
+  const compositeKey = buildCompositeKey(userId, numericReviewId);
 
+  memoryPendingQueue.set(compositeKey, {
+    user_id: String(userId),
+    review_id: numericReviewId,
+    vote_type: numericVoteType,
+    updated_at: timestamp,
+  });
+
+  const db = getDatabase();
   if (db) {
     db.runSync(
       `INSERT OR REPLACE INTO offline_vote_queue (user_id, review_id, vote_type, updated_at)
@@ -182,7 +258,7 @@ export function enqueueOfflineVote({ userId, reviewId, voteType }) {
     );
   } else {
     const queueMap = readFallbackMap(FALLBACK_QUEUE_KEY);
-    queueMap[buildCompositeKey(userId, numericReviewId)] = {
+    queueMap[compositeKey] = {
       user_id: String(userId),
       review_id: numericReviewId,
       vote_type: numericVoteType,
@@ -200,10 +276,13 @@ export function enqueueOfflineVote({ userId, reviewId, voteType }) {
 
 export function removeQueuedVote({ userId, reviewId }) {
   if (!userId || !reviewId) return;
+  ensureMemoryHydrated();
 
   const numericReviewId = Number(reviewId);
-  const db = getDatabase();
+  const compositeKey = buildCompositeKey(userId, numericReviewId);
+  memoryPendingQueue.delete(compositeKey);
 
+  const db = getDatabase();
   if (db) {
     db.runSync(
       `DELETE FROM offline_vote_queue WHERE user_id = ? AND review_id = ?`,
@@ -211,7 +290,7 @@ export function removeQueuedVote({ userId, reviewId }) {
     );
   } else {
     const queueMap = readFallbackMap(FALLBACK_QUEUE_KEY);
-    delete queueMap[buildCompositeKey(userId, numericReviewId)];
+    delete queueMap[compositeKey];
     writeFallbackMap(FALLBACK_QUEUE_KEY, queueMap);
   }
 
@@ -224,44 +303,13 @@ export function removeQueuedVote({ userId, reviewId }) {
 
 export function isReviewVotePendingSync({ userId, reviewId }) {
   if (!userId || !reviewId) return false;
-
-  const numericReviewId = Number(reviewId);
-  const db = getDatabase();
-
-  if (db) {
-    const row = db.getFirstSync(
-      `SELECT 1 AS pending FROM offline_vote_queue WHERE user_id = ? AND review_id = ?`,
-      [String(userId), numericReviewId]
-    );
-    return Boolean(row?.pending);
-  }
-
-  const queueMap = readFallbackMap(FALLBACK_QUEUE_KEY);
-  return Boolean(queueMap[buildCompositeKey(userId, numericReviewId)]);
+  ensureMemoryHydrated();
+  return memoryPendingQueue.has(buildCompositeKey(userId, reviewId));
 }
 
 export function getPendingVoteQueue(userId) {
-  const db = getDatabase();
-
-  if (db) {
-    if (userId) {
-      return db.getAllSync(
-        `SELECT user_id, review_id, vote_type, updated_at
-         FROM offline_vote_queue
-         WHERE user_id = ?
-         ORDER BY updated_at ASC`,
-        [String(userId)]
-      );
-    }
-    return db.getAllSync(
-      `SELECT user_id, review_id, vote_type, updated_at
-       FROM offline_vote_queue
-       ORDER BY updated_at ASC`
-    );
-  }
-
-  const queueMap = readFallbackMap(FALLBACK_QUEUE_KEY);
-  const items = Object.values(queueMap);
+  ensureMemoryHydrated();
+  const items = Array.from(memoryPendingQueue.values());
   const filtered = userId
     ? items.filter((item) => String(item.user_id) === String(userId))
     : items;
@@ -349,6 +397,8 @@ export async function flushOfflineVoteQueue(userId) {
 }
 
 export async function fetchVotesForReviews(reviewIds, currentUserId) {
+  ensureMemoryHydrated();
+
   const normalizedIds = Array.from(
     new Set((reviewIds ?? []).map((id) => Number(id)).filter((id) => Number.isFinite(id)))
   );
@@ -406,11 +456,12 @@ export async function fetchVotesForReviews(reviewIds, currentUserId) {
             remoteBucket.userVote = cached.userVote;
           }
         } else {
-          saveCachedReviewVoteState({
-            userId: currentUserId,
+          memoryVoteCache.set(buildCompositeKey(currentUserId, reviewId), {
             reviewId,
+            userId: String(currentUserId),
             voteScore: remoteBucket.voteScore,
             userVote: remoteBucket.userVote,
+            updatedAt: Date.now(),
           });
         }
       });

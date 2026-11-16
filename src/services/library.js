@@ -1,12 +1,106 @@
+import * as SQLite from 'expo-sqlite';
 import { supabase } from './supabase';
-import { buildCacheBustedAvatarUrl, normalizeProfileRow } from './profiles';
+import { normalizeProfileRow } from './profiles';
 import { fetchVotesForReviews, VOTE_TYPE } from './votes';
+
+export const FEED_PAGE_SIZE = 15;
+
+export const FEED_TYPE = {
+  FOLLOWING: 'following',
+  TRENDING: 'trending',
+};
+
+const FEED_CACHE_DB_NAME = 'gamestar_feed_cache.db';
+const FALLBACK_FEED_CACHE_KEY = 'gamestar:feed_cache';
 
 const ENTRY_FIELDS = `
   id, user_id, game_id, status, rating, review, playtime, platform, created_at, updated_at,
   game:games (id, title, release_year, cover_url, genres, developer, platforms, source),
   profile:profiles (id, username, display_name, avatar_url)
 `;
+
+let feedCacheDbInstance = null;
+
+function getFeedCacheDatabase() {
+  if (feedCacheDbInstance) return feedCacheDbInstance;
+
+  try {
+    const db = SQLite.openDatabaseSync(FEED_CACHE_DB_NAME);
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS feed_cache (
+        cache_key TEXT PRIMARY KEY NOT NULL,
+        entries_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `);
+    feedCacheDbInstance = db;
+    return feedCacheDbInstance;
+  } catch {
+    return null;
+  }
+}
+
+function buildFeedCacheKey(feedType, userId) {
+  const scope = feedType === FEED_TYPE.FOLLOWING ? String(userId || 'anonymous') : 'global';
+  return `${feedType}:${scope}`;
+}
+
+export function saveCachedFeedEntries(feedType, userId, entries) {
+  if (!Array.isArray(entries)) return;
+
+  const cacheKey = buildFeedCacheKey(feedType, userId);
+  const serializedEntries = JSON.stringify(entries);
+  const timestamp = Date.now();
+  const db = getFeedCacheDatabase();
+
+  if (db) {
+    db.runSync(
+      `INSERT OR REPLACE INTO feed_cache (cache_key, entries_json, updated_at)
+       VALUES (?, ?, ?)`,
+      [cacheKey, serializedEntries, timestamp]
+    );
+    return;
+  }
+
+  try {
+    const rawMap = globalThis.localStorage?.getItem(FALLBACK_FEED_CACHE_KEY);
+    const cacheMap = rawMap ? JSON.parse(rawMap) : {};
+    cacheMap[cacheKey] = {
+      entries,
+      updatedAt: timestamp,
+    };
+    globalThis.localStorage?.setItem(FALLBACK_FEED_CACHE_KEY, JSON.stringify(cacheMap));
+  } catch {}
+}
+
+export function getCachedFeedEntries(feedType, userId) {
+  const cacheKey = buildFeedCacheKey(feedType, userId);
+  const db = getFeedCacheDatabase();
+
+  if (db) {
+    const row = db.getFirstSync(
+      `SELECT entries_json FROM feed_cache WHERE cache_key = ?`,
+      [cacheKey]
+    );
+    if (!row?.entries_json) return null;
+    try {
+      const parsed = JSON.parse(row.entries_json);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const rawMap = globalThis.localStorage?.getItem(FALLBACK_FEED_CACHE_KEY);
+    if (!rawMap) return null;
+    const cacheMap = JSON.parse(rawMap);
+    const cached = cacheMap?.[cacheKey]?.entries;
+    return Array.isArray(cached) ? cached : null;
+  } catch {
+    return null;
+  }
+}
 
 function parseNumericRating(rating) {
   if (typeof rating === 'number' && !Number.isNaN(rating)) {
@@ -19,26 +113,17 @@ function parseNumericRating(rating) {
   return null;
 }
 
-function normalizeEntryProfile(rawProfile, timestamp) {
+function normalizeEntryProfile(rawProfile) {
   if (!rawProfile) return rawProfile;
-  const normalized = normalizeProfileRow(rawProfile);
-  const cacheBustedAvatar = buildCacheBustedAvatarUrl(
-    normalized.avatarUrl ?? normalized.avatar_url,
-    timestamp
-  );
-  return {
-    ...normalized,
-    avatarUrl: cacheBustedAvatar,
-    avatar_url: cacheBustedAvatar,
-  };
+  return normalizeProfileRow(rawProfile);
 }
 
-function normalizeLibraryEntry(entry, timestamp = Date.now(), voteSummary = null) {
+function normalizeLibraryEntry(entry, voteSummary = null) {
   if (!entry) return entry;
   return {
     ...entry,
     rating: parseNumericRating(entry.rating),
-    profile: normalizeEntryProfile(entry.profile, timestamp),
+    profile: normalizeEntryProfile(entry.profile),
     upvotes: voteSummary?.upvotes ?? entry.upvotes ?? 0,
     downvotes: voteSummary?.downvotes ?? entry.downvotes ?? 0,
     voteScore: voteSummary?.voteScore ?? entry.voteScore ?? 0,
@@ -58,7 +143,6 @@ async function resolveCurrentUserId(explicitUserId) {
 
 async function attachVoteSummaries(entries, currentUserId) {
   const safeEntries = entries ?? [];
-  const fetchTimestamp = Date.now();
   if (safeEntries.length === 0) return [];
 
   const resolvedUserId = await resolveCurrentUserId(currentUserId);
@@ -66,8 +150,99 @@ async function attachVoteSummaries(entries, currentUserId) {
   const votesByReviewId = await fetchVotesForReviews(reviewIds, resolvedUserId);
 
   return safeEntries.map((entry) =>
-    normalizeLibraryEntry(entry, fetchTimestamp, votesByReviewId[Number(entry.id)])
+    normalizeLibraryEntry(entry, votesByReviewId[Number(entry.id)])
   );
+}
+
+function compareByTrendingOrder(firstEntry, secondEntry) {
+  const upvoteDifference = (secondEntry.upvotes ?? 0) - (firstEntry.upvotes ?? 0);
+  if (upvoteDifference !== 0) return upvoteDifference;
+
+  const scoreDifference = (secondEntry.voteScore ?? 0) - (firstEntry.voteScore ?? 0);
+  if (scoreDifference !== 0) return scoreDifference;
+
+  return new Date(secondEntry.updated_at).getTime() - new Date(firstEntry.updated_at).getTime();
+}
+
+export async function fetchFollowingFeed(
+  userId,
+  { page = 0, pageSize = FEED_PAGE_SIZE } = {}
+) {
+  if (!userId) {
+    return { entries: [], hasMore: false };
+  }
+
+  const { data: follows, error: followsError } = await supabase
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId);
+
+  if (followsError) throw followsError;
+
+  const followingIds = (follows ?? []).map((follow) => follow.following_id);
+  if (followingIds.length === 0) {
+    if (page === 0) {
+      saveCachedFeedEntries(FEED_TYPE.FOLLOWING, userId, []);
+    }
+    return { entries: [], hasMore: false };
+  }
+
+  const rangeStart = page * pageSize;
+  const rangeEnd = rangeStart + pageSize;
+
+  const { data, error } = await supabase
+    .from('user_games')
+    .select(ENTRY_FIELDS)
+    .in('user_id', followingIds)
+    .order('updated_at', { ascending: false })
+    .range(rangeStart, rangeEnd);
+
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const hasMore = rows.length > pageSize;
+  const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const enrichedEntries = await attachVoteSummaries(pageRows, userId);
+
+  if (page === 0) {
+    saveCachedFeedEntries(FEED_TYPE.FOLLOWING, userId, enrichedEntries);
+  }
+
+  return {
+    entries: enrichedEntries,
+    hasMore,
+  };
+}
+
+export async function fetchTrendingFeed({
+  userId = null,
+  page = 0,
+  pageSize = FEED_PAGE_SIZE,
+} = {}) {
+  const { data, error } = await supabase
+    .from('user_games')
+    .select(ENTRY_FIELDS)
+    .order('updated_at', { ascending: false })
+    .limit(200);
+
+  if (error) throw error;
+
+  const enrichedEntries = await attachVoteSummaries(data ?? [], userId);
+  const sortedEntries = [...enrichedEntries].sort(compareByTrendingOrder);
+
+  if (page === 0) {
+    saveCachedFeedEntries(FEED_TYPE.TRENDING, userId, sortedEntries);
+  }
+
+  const rangeStart = page * pageSize;
+  const rangeEnd = rangeStart + pageSize;
+  const paginatedEntries = sortedEntries.slice(rangeStart, rangeEnd);
+  const hasMore = rangeEnd < sortedEntries.length;
+
+  return {
+    entries: paginatedEntries,
+    hasMore,
+  };
 }
 
 export async function getUserLibrary(userId) {
@@ -109,7 +284,7 @@ export async function saveLibraryEntry({ id, game_id, status, rating, review, pl
 
   const { data, error } = await query.select(ENTRY_FIELDS).single();
   if (error) throw error;
-  return normalizeLibraryEntry(data, Date.now());
+  return normalizeLibraryEntry(data);
 }
 
 export async function deleteLibraryEntry(entryId) {
@@ -118,22 +293,6 @@ export async function deleteLibraryEntry(entryId) {
 }
 
 export async function getActivityFeed(userId) {
-  const { data: follows, error: followsError } = await supabase
-    .from('follows')
-    .select('following_id')
-    .eq('follower_id', userId);
-
-  if (followsError) throw followsError;
-
-  const userIds = [userId, ...follows.map((follow) => follow.following_id)];
-
-  const { data, error } = await supabase
-    .from('user_games')
-    .select(ENTRY_FIELDS)
-    .in('user_id', userIds)
-    .order('updated_at', { ascending: false })
-    .limit(50);
-
-  if (error) throw error;
-  return attachVoteSummaries(data, userId);
+  const result = await fetchFollowingFeed(userId, { page: 0, pageSize: 50 });
+  return result.entries;
 }

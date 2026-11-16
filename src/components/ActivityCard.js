@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AppText from './AppText';
@@ -9,7 +9,6 @@ import RatingLabel from './RatingLabel';
 import { useAuth } from '../contexts/AuthContext';
 import { useReviewVoteViewModel } from '../hooks/useReviewVoteViewModel';
 import { GAME_STATUS } from '../services/games';
-import { buildCacheBustedAvatarUrl } from '../services/profiles';
 import { useTheme } from '../theme/ThemeProvider';
 
 const STATUS_VERB = {
@@ -31,7 +30,7 @@ function formatRelativeTime(isoDate) {
   return new Date(isoDate).toLocaleDateString('pt-BR');
 }
 
-export default function ActivityCard({ entry, onPressProfile, onPressGame, showGame = true }) {
+function ActivityCard({ entry, onPressProfile, onPressGame, showGame = true }) {
   const { colors, spacing, radius } = useTheme();
   const { userId: currentUserId, profile: currentUserProfile } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -51,21 +50,9 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
   });
 
   const isOwnActivity = entry.user_id === currentUserId && Boolean(currentUserProfile);
-  const rawAuthorProfile = isOwnActivity
+  const authorProfile = isOwnActivity
     ? { ...entry.profile, ...currentUserProfile }
     : entry.profile;
-
-  const rawAvatarUri = rawAuthorProfile?.avatarUrl ?? rawAuthorProfile?.avatar_url ?? null;
-  const resolvedAvatarUri =
-    typeof rawAvatarUri === 'string' && (rawAvatarUri.includes('?t=') || rawAvatarUri.includes('&t='))
-      ? rawAvatarUri
-      : buildCacheBustedAvatarUrl(rawAvatarUri);
-
-  const authorProfile = {
-    ...rawAuthorProfile,
-    avatarUrl: resolvedAvatarUri,
-    avatar_url: resolvedAvatarUri,
-  };
 
   const status = GAME_STATUS[entry.status] || GAME_STATUS.wishlist;
   const authorName =
@@ -77,9 +64,21 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
   const downvoteColor = isDownvoted ? colors.danger : colors.textMuted;
   const scoreTone = isUpvoted ? 'primary' : isDownvoted ? 'danger' : 'muted';
 
-  function handleToggleExpand() {
+  const handleToggleExpand = useCallback(() => {
     setIsExpanded((previousState) => !previousState);
-  }
+  }, []);
+
+  const handlePressAuthorProfile = useCallback(() => {
+    if (onPressProfile) {
+      onPressProfile(entry.user_id);
+    }
+  }, [entry.user_id, onPressProfile]);
+
+  const handlePressGameDetails = useCallback(() => {
+    if (onPressGame) {
+      onPressGame(entry.game_id);
+    }
+  }, [entry.game_id, onPressGame]);
 
   return (
     <View
@@ -96,7 +95,7 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
       ]}
     >
       <Pressable
-        onPress={onPressProfile}
+        onPress={handlePressAuthorProfile}
         hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={`Ver perfil de ${authorName}`}
@@ -124,7 +123,7 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
       <View style={[styles.row, { gap: spacing.sm }]}>
         {showGame ? (
           <Pressable
-            onPress={onPressGame}
+            onPress={handlePressGameDetails}
             accessibilityRole="button"
             accessibilityLabel={`Ver página de ${entry.game?.title}`}
           >
@@ -134,7 +133,7 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
         <View style={[styles.flex, { gap: spacing.xs }]}>
           {showGame && entry.game?.title ? (
             <Pressable
-              onPress={onPressGame}
+              onPress={handlePressGameDetails}
               accessibilityRole="button"
               accessibilityLabel={`Abrir detalhes de ${entry.game.title}`}
             >
@@ -277,6 +276,32 @@ export default function ActivityCard({ entry, onPressProfile, onPressGame, showG
     </View>
   );
 }
+
+function areActivityCardPropsEqual(previousProps, nextProps) {
+  if (previousProps.showGame !== nextProps.showGame) return false;
+  if (previousProps.onPressProfile !== nextProps.onPressProfile) return false;
+  if (previousProps.onPressGame !== nextProps.onPressGame) return false;
+
+  const prevEntry = previousProps.entry;
+  const nextEntry = nextProps.entry;
+  if (prevEntry === nextEntry) return true;
+  if (!prevEntry || !nextEntry) return false;
+
+  return (
+    prevEntry.id === nextEntry.id &&
+    prevEntry.updated_at === nextEntry.updated_at &&
+    prevEntry.status === nextEntry.status &&
+    prevEntry.rating === nextEntry.rating &&
+    prevEntry.review === nextEntry.review &&
+    prevEntry.playtime === nextEntry.playtime &&
+    prevEntry.voteScore === nextEntry.voteScore &&
+    prevEntry.userVote === nextEntry.userVote &&
+    prevEntry.profile?.avatarUrl === nextEntry.profile?.avatarUrl &&
+    prevEntry.profile?.displayName === nextEntry.profile?.displayName
+  );
+}
+
+export default memo(ActivityCard, areActivityCardPropsEqual);
 
 const styles = StyleSheet.create({
   card: {
