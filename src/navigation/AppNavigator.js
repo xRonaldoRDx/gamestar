@@ -5,6 +5,7 @@ import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
+import HeaderLogo from '../components/HeaderLogo';
 import { LoadingState } from '../components/ScreenState';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../theme/ThemeProvider';
@@ -61,7 +62,11 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="FeedTab" component={FeedScreen} options={{ title: 'Gamestar', tabBarLabel: 'Feed' }} />
+      <Tab.Screen
+        name="FeedTab"
+        component={FeedScreen}
+        options={{ title: 'Gamestar', tabBarLabel: 'Feed', headerTitle: () => <HeaderLogo /> }}
+      />
       <Tab.Screen name="SearchTab" component={SearchScreen} options={{ title: 'Buscar Jogo', tabBarLabel: 'Buscar' }} />
       <Tab.Screen name="PeopleTab" component={PeopleScreen} options={{ title: 'Jogadores', tabBarLabel: 'Pessoas' }} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Meu Perfil', tabBarLabel: 'Perfil' }} />
