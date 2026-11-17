@@ -52,7 +52,6 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         ...headerOptions,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        // On Android the tab bar would otherwise sit on top of the keyboard
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
@@ -97,7 +96,6 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      {/* Both themes use dark backgrounds, so status bar text is always light */}
       <StatusBar style="light" />
       <Stack.Navigator
         screenOptions={{ ...headerOptions, contentStyle: { backgroundColor: colors.background } }}

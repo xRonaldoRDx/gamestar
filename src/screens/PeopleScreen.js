@@ -77,7 +77,6 @@ function UserCard({ profile, onPress }) {
   );
 }
 
-// Searches every user while the field has text; returns null while the field is empty
 function useProfileSearch(searchQuery, userId) {
   const [results, setResults] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -124,7 +123,6 @@ export default function PeopleScreen({ route, navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState(PEOPLE_TAB.FOLLOWING);
 
-  // The own profile opens this tab on a specific list (followers or following)
   const requestedTab = route?.params?.initialTab;
   const requestedAt = route?.params?.requestedAt;
   useEffect(() => {
@@ -142,8 +140,6 @@ export default function PeopleScreen({ route, navigation }) {
     }, [])
   );
 
-  // Both lists load together so each tab can show its count; reloaded on focus
-  // because following someone happens on their profile screen
   const {
     data: connections,
     isLoading,

@@ -17,7 +17,6 @@ import { createGameRequest, getMyGameRequests, REQUEST_STATUS } from '../service
 import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
-
 export default function RequestGameScreen({ route, navigation }) {
   const { userId } = useAuth();
   const { colors, spacing, radius } = useTheme();

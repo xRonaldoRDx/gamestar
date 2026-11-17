@@ -41,7 +41,6 @@ export default function EditProfileScreen({ route, navigation }) {
   const isBusy = isSaving || isUploadingAvatar || isRemovingAvatar;
   const hasAvatar = Boolean(userProfile.avatar_url);
 
-  // Applies a profile returned by the server here and in the signed-in user's context
   async function applyProfileUpdate(updatedProfile) {
     const nextProfile = { ...userProfile, ...updatedProfile };
     setUserProfile(nextProfile);

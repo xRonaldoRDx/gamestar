@@ -1,11 +1,3 @@
-// Supabase Edge Function: searches IGDB and imports games into the shared catalog.
-// The Twitch/IGDB client secret lives only here (Edge Function secrets), never in the app.
-//
-// Required secrets: IGDB_CLIENT_ID, IGDB_CLIENT_SECRET
-// Actions (POST JSON body):
-//   { action: 'search', query: string }  -> IGDB results not yet in the catalog shape
-//   { action: 'import', igdbId: number } -> catalog row (inserted, refreshed or existing)
-
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const IGDB_URL = 'https://api.igdb.com/v4/games';
@@ -34,12 +26,10 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const publishableKey = firstKey('SUPABASE_PUBLISHABLE_KEYS') ?? Deno.env.get('SUPABASE_ANON_KEY')!;
 const secretKey = firstKey('SUPABASE_SECRET_KEYS') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Secret client bypasses RLS: only this function writes IGDB games to the catalog
 const adminClient = createClient(supabaseUrl, secretKey, {
   auth: { persistSession: false },
 });
 
-// New-style keys come as a JSON dictionary, e.g. {"default": "sb_secret_..."}
 function firstKey(envName: string): string | null {
   const raw = Deno.env.get(envName);
   if (!raw) return null;
@@ -51,7 +41,6 @@ function firstKey(envName: string): string | null {
   }
 }
 
-// Twitch app tokens last ~60 days; cached per function instance
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 async function getTwitchToken(): Promise<string> {
@@ -96,7 +85,6 @@ async function queryIgdb(body: string) {
   return response.json();
 }
 
-// deno-lint-ignore no-explicit-any
 function toCatalogRow(game: any) {
   const developers = (game.involved_companies ?? [])
     .filter((company: { developer?: boolean }) => company.developer)
@@ -117,7 +105,6 @@ function toCatalogRow(game: any) {
       .filter(Boolean)
       .join(', '),
     summary: game.summary ?? '',
-    // IGDB critic scores are 0-100; the app uses 0-5 in half steps
     critic_rating: game.aggregated_rating
       ? Math.max(0.5, Math.round((game.aggregated_rating / 20) * 2) / 2)
       : null,
@@ -125,11 +112,9 @@ function toCatalogRow(game: any) {
 }
 
 async function searchGames(query: string) {
-  // Quotes and backslashes would break the Apicalypse query string
   const safeQuery = query.replace(/["\\]/g, '').trim().slice(0, 80);
   if (!safeQuery) return [];
 
-  // version_parent = null hides editions such as "Game of the Year Edition"
   const results = await queryIgdb(
     `search "${safeQuery}"; fields ${GAME_FIELDS}; where version_parent = null; limit ${SEARCH_LIMIT};`
   );
@@ -150,7 +135,6 @@ async function importGame(igdbId: number) {
 
   const [game] = await queryIgdb(`fields ${GAME_FIELDS}; where id = ${igdbId}; limit 1;`);
   if (!game) {
-    // Keep serving the stored copy if IGDB no longer has the game
     if (existing) return existing;
     throw new HttpError(404, 'Jogo não encontrado no catálogo.');
   }
@@ -184,7 +168,6 @@ Deno.serve(async (request) => {
   }
 
   try {
-    // Only signed-in users of the app may use the catalog
     const userClient = createClient(supabaseUrl, publishableKey, {
       global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } },
       auth: { persistSession: false },

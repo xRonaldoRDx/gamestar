@@ -10,10 +10,6 @@ function describeGame(game) {
   return [game.release_year, game.platforms].filter(Boolean).join(' · ');
 }
 
-/**
- * Two-section result list (catalog + IGDB) shared by the search screen
- * and the admin request screen.
- */
 export default function GameSearchResults({
   catalogGames,
   igdbGames,

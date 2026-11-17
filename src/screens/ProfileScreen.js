@@ -110,7 +110,6 @@ export default function ProfileScreen({ route, navigation }) {
     ]);
   }
 
-  // Reuses the People tab; requestedAt makes it switch lists even if the same one was asked before
   function openPeopleList(tab) {
     navigation.navigate('MainTabs', {
       screen: 'PeopleTab',
@@ -200,7 +199,6 @@ export default function ProfileScreen({ route, navigation }) {
       >
         <StatItem label="Jogos" value={stats.total} />
         <StatItem label="Zerados" value={stats.completed} />
-        {/* Separates display-only counts from the follow counts, which open lists */}
         <View style={[styles.statsDivider, { backgroundColor: colors.border, marginVertical: spacing.xs }]} />
         <StatItem
           label="Seguindo"

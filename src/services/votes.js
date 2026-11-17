@@ -22,8 +22,6 @@ function buildCompositeKey(userId, reviewId) {
   return `${String(userId)}:${Number(reviewId)}`;
 }
 
-// The vote cache and the offline queue live in memory and are mirrored to
-// localStorage (backed by expo-sqlite), so pending votes survive an app restart
 function readStoredMap(storageKey) {
   try {
     const raw = globalThis.localStorage?.getItem(storageKey);

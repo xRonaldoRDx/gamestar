@@ -4,10 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import AppText from './AppText';
 import { useTheme } from '../theme/ThemeProvider';
 
-/**
- * A count with its label inside a stats bar (profile, game page).
- * Without onPress it is display-only; with it, a chevron hints that it opens a list.
- */
 export default function StatItem({ label, value, onPress, valueVariant = 'title' }) {
   const { colors, radius } = useTheme();
 

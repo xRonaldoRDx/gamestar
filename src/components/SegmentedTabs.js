@@ -3,10 +3,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import AppText from './AppText';
 import { useTheme } from '../theme/ThemeProvider';
 
-/**
- * Pill-style tab switcher shown at the top of a screen (Feed, People).
- * `tabs` is a list of { key, label }.
- */
 export default function SegmentedTabs({ tabs, activeTab, onSelectTab, accessibilityPrefix = '' }) {
   const { colors, spacing, radius } = useTheme();
 

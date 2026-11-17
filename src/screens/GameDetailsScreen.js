@@ -49,7 +49,6 @@ export default function GameDetailsScreen({ route, navigation }) {
     importIgdbGame(data.game.igdb_id)
       .then((freshGame) => setData((current) => (current ? { ...current, game: freshGame } : current)))
       .catch((err) => console.warn('[GameDetails] Background refresh failed:', err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStale]);
 
   if (error && !data) {

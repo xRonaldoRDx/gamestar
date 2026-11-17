@@ -22,8 +22,6 @@ function buildFeedCacheKey(feedType, userId) {
   return `${feedType}:${scope}`;
 }
 
-// The last loaded feed page is kept in localStorage (backed by expo-sqlite)
-// so the feed can still be shown while offline
 function readFeedCache() {
   try {
     const raw = globalThis.localStorage?.getItem(FEED_CACHE_STORAGE_KEY);

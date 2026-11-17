@@ -31,7 +31,6 @@ export default function AdminRequestScreen({ route, navigation }) {
 
   useEffect(() => {
     searchGames(group.title);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function approveWithGame(gameId) {

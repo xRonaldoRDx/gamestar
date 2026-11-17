@@ -8,16 +8,11 @@ import { toFriendlyMessage } from '../services/supabase';
 const UPLOAD_ERROR_MESSAGE = 'Não foi possível enviar a imagem. Tente novamente.';
 const PERMISSION_MESSAGE = 'Permita o acesso à galeria para alterar sua foto de perfil.';
 
-/**
- * Lets the signed-in user pick a square photo from the gallery and upload it
- * as their avatar. Shared by the profile and edit-profile screens.
- */
 export function useAvatarUpload() {
   const { userId, updateAuthProfile, reloadProfile } = useAuth();
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState('');
 
-  // Resolves with the updated profile, or null when cancelled or failed
   const pickAndUploadAvatar = useCallback(async () => {
     setAvatarError('');
 

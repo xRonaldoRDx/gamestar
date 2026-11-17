@@ -7,9 +7,6 @@ import RatingLabel, { formatRating } from './RatingLabel';
 import { GAME_STATUS } from '../services/games';
 import { useTheme } from '../theme/ThemeProvider';
 
-/**
- * A library entry: one game plus a user's status and rating for it.
- */
 export default function GameListItem({ entry, onPress }) {
   const { colors, spacing, radius, shadow } = useTheme();
   const { game } = entry;

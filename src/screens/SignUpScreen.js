@@ -74,8 +74,6 @@ export default function SignUpScreen() {
         <TextField
           label="Nome de usuário"
           value={username}
-          // Rewriting the text on every keystroke confuses Android keyboards that are
-          // still composing a word (typing "Gu" became "ggu"), so it is normalized on blur
           onChangeText={setUsername}
           onBlur={() => setUsername(normalizeUsername(username))}
           placeholder="ex: gustavo_gamer"

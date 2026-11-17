@@ -1,12 +1,3 @@
--- =============================================================
--- GAMESTAR - Supabase schema
--- Paste this whole file into the Supabase SQL Editor and run it.
--- Safe to run more than once: it only creates what is missing.
--- =============================================================
-
--- -------------------------------------------------------------
--- PROFILES (1:1 with auth.users)
--- -------------------------------------------------------------
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   username text not null unique
@@ -18,8 +9,6 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Creates the profile automatically on sign up.
--- username comes from options.data.username sent by the app.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -42,8 +31,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Admins curate the catalog. Users cannot promote themselves: they may only
--- update display_name, bio and avatar_url (column-level grant below).
 revoke update on public.profiles from anon, authenticated;
 grant update (display_name, bio, avatar_url) on public.profiles to authenticated;
 
@@ -60,9 +47,6 @@ as $$
   );
 $$;
 
--- -------------------------------------------------------------
--- AVATARS STORAGE BUCKET
--- -------------------------------------------------------------
 insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)
 on conflict (id) do update set public = true;
@@ -100,11 +84,6 @@ create policy "avatars_delete_own" on storage.objects
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
 
--- -------------------------------------------------------------
--- GAMES (shared catalog)
--- Imported from IGDB by the `catalog` Edge Function or added by admins.
--- 'steam' rows come from an earlier version and are kept as they are.
--- -------------------------------------------------------------
 create table if not exists public.games (
   id bigint generated always as identity primary key,
   title text not null check (char_length(title) between 1 and 120),
@@ -117,7 +96,6 @@ create table if not exists public.games (
   steam_appid int unique,
   igdb_id bigint unique,
   summary text not null default '',
-  -- Critics score from IGDB, already converted to the app's 0-5 scale
   critic_rating numeric(2, 1),
   created_by uuid references public.profiles (id) on delete set null default auth.uid(),
   created_at timestamptz not null default now(),
@@ -126,15 +104,11 @@ create table if not exists public.games (
 
 create index if not exists games_title_idx on public.games (lower(title));
 
--- -------------------------------------------------------------
--- USER LIBRARY (status, 0-5 star rating, review...)
--- -------------------------------------------------------------
 create table if not exists public.user_games (
   id bigint generated always as identity primary key,
   user_id uuid not null references public.profiles (id) on delete cascade default auth.uid(),
   game_id bigint not null references public.games (id) on delete cascade,
   status text not null check (status in ('playing', 'completed', 'dropped', 'paused', 'wishlist')),
-  -- Half-star steps from 0 to 5; null means "not rated"
   rating numeric(2, 1) check (rating between 0 and 5 and rating * 2 = floor(rating * 2)),
   review text not null default '' check (char_length(review) <= 2000),
   playtime int check (playtime >= 0),
@@ -162,9 +136,6 @@ create trigger user_games_touch
   before update on public.user_games
   for each row execute function public.touch_updated_at();
 
--- -------------------------------------------------------------
--- FOLLOWS
--- -------------------------------------------------------------
 create table if not exists public.follows (
   follower_id uuid not null references public.profiles (id) on delete cascade default auth.uid(),
   following_id uuid not null references public.profiles (id) on delete cascade,
@@ -175,16 +146,11 @@ create table if not exists public.follows (
 
 create index if not exists follows_following_idx on public.follows (following_id);
 
--- -------------------------------------------------------------
--- ROW LEVEL SECURITY
--- Every signed-in user can READ; each user only CHANGES their own rows.
--- -------------------------------------------------------------
 alter table public.profiles enable row level security;
 alter table public.games enable row level security;
 alter table public.user_games enable row level security;
 alter table public.follows enable row level security;
 
--- Profiles are also readable by anon so sign up can check if a username is taken
 drop policy if exists "profiles_select" on public.profiles;
 create policy "profiles_select" on public.profiles
   for select to anon, authenticated using (true);
@@ -195,8 +161,6 @@ create policy "profiles_update_own" on public.profiles
   using ((select auth.uid()) = id)
   with check ((select auth.uid()) = id);
 
--- Only admins write to the catalog directly. IGDB imports go through the
--- Edge Function, which uses the secret key and bypasses RLS.
 drop policy if exists "games_select" on public.games;
 create policy "games_select" on public.games
   for select to authenticated using (true);
@@ -248,10 +212,6 @@ create policy "follows_delete_own" on public.follows
   for delete to authenticated
   using ((select auth.uid()) = follower_id);
 
--- -------------------------------------------------------------
--- GAME REQUESTS
--- Users ask for games missing from IGDB; admins approve or reject them.
--- -------------------------------------------------------------
 create table if not exists public.game_requests (
   id bigint generated always as identity primary key,
   title text not null check (char_length(title) between 1 and 120),
@@ -292,9 +252,6 @@ create policy "game_requests_delete" on public.game_requests
     or (select public.is_admin())
   );
 
--- -------------------------------------------------------------
--- REVIEW VOTES (Reddit-style upvote / downvote on user_games)
--- -------------------------------------------------------------
 create table if not exists public.review_votes (
   id bigint generated always as identity primary key,
   review_id bigint not null references public.user_games (id) on delete cascade,
@@ -334,9 +291,3 @@ drop policy if exists "review_votes_delete_own" on public.review_votes;
 create policy "review_votes_delete_own" on public.review_votes
   for delete to authenticated
   using ((select auth.uid()) = user_id);
-
--- -------------------------------------------------------------
--- MAKING SOMEONE AN ADMIN
--- Run once, replacing the username (not part of the automatic setup):
---   update public.profiles set is_admin = true where username = 'seu_usuario';
--- -------------------------------------------------------------

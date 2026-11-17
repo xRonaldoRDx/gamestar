@@ -3,10 +3,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import AppText from './AppText';
 import { useTheme } from '../theme/ThemeProvider';
 
-/**
- * Single-choice chip grid used by the review form (status, platform).
- * `options` is a list of { value, label }.
- */
 export default function ChoiceChips({ options, value, onChange, disabled = false, accessibilityPrefix = '' }) {
   const { colors, spacing, radius } = useTheme();
 

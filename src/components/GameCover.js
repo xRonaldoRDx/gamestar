@@ -4,13 +4,8 @@ import { Image } from 'expo-image';
 import AppText from './AppText';
 import { useTheme } from '../theme/ThemeProvider';
 
-// IGDB box art (t_cover_big) is portrait, 264x374
 const COVER_ASPECT_RATIO = 264 / 374;
 
-/**
- * expo-image keeps covers in a memory + disk cache, so lists do not
- * re-download images while scrolling.
- */
 export default function GameCover({ uri, width = 64, style }) {
   const { colors, radius } = useTheme();
 

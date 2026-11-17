@@ -5,7 +5,6 @@ const PROFILE_FIELDS = 'id, username, display_name, bio, avatar_url, is_admin, c
 const STORAGE_BUCKET = 'avatars';
 export const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
-// The image picker returns base64; Hermes' built-in atob turns it into the bytes Storage expects
 function decodeBase64ToArrayBuffer(base64String) {
   const sanitized = base64String.replace(/^data:[^;]+;base64,/, '').replace(/[^A-Za-z0-9+/=]/g, '');
   return Uint8Array.from(atob(sanitized), (char) => char.charCodeAt(0)).buffer;
@@ -96,10 +95,8 @@ export async function searchProfiles(searchQuery) {
   return (data ?? []).map(normalizeProfileRow);
 }
 
-// Keeps the People tab responsive even for very popular profiles
 const FOLLOW_LIST_LIMIT = 200;
 
-// `follows` points to profiles twice, so the embed names which foreign key to follow
 async function getFollowProfiles({ filterColumn, profileForeignKey, userId }) {
   const { data, error } = await supabase
     .from('follows')
@@ -112,9 +109,6 @@ async function getFollowProfiles({ filterColumn, profileForeignKey, userId }) {
   return (data ?? []).map((row) => normalizeProfileRow(row.profile)).filter(Boolean);
 }
 
-/**
- * People the user follows, most recently followed first.
- */
 export function getFollowingProfiles(userId) {
   return getFollowProfiles({
     filterColumn: 'follower_id',
@@ -123,9 +117,6 @@ export function getFollowingProfiles(userId) {
   });
 }
 
-/**
- * People who follow the user, most recent followers first.
- */
 export function getFollowerProfiles(userId) {
   return getFollowProfiles({
     filterColumn: 'following_id',
@@ -201,7 +192,6 @@ export async function uploadProfileAvatar(userId, imageAsset) {
     }
 
     const updatedProfile = await updateProfile(userId, { avatar_url: rawPublicUrl });
-    // The file path never changes, so a fresh query string forces the new photo to load
     return { ...updatedProfile, avatar_url: buildCacheBustedAvatarUrl(rawPublicUrl) };
   } catch {
     throw new Error('Não foi possível enviar a imagem. Tente novamente.');
