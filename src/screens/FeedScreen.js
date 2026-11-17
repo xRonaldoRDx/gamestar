@@ -17,8 +17,8 @@ import { FEED_TYPE } from '../services/library';
 import { useTheme } from '../theme/ThemeProvider';
 
 const FEED_TABS = [
-  { key: FEED_TYPE.FOLLOWING, label: 'Following' },
-  { key: FEED_TYPE.TRENDING, label: 'Trending' },
+  { key: FEED_TYPE.FOLLOWING, label: 'Seguindo' },
+  { key: FEED_TYPE.TRENDING, label: 'Em alta' },
 ];
 
 export default function FeedScreen({ navigation }) {
