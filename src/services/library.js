@@ -1,4 +1,3 @@
-import * as SQLite from 'expo-sqlite';
 import { supabase } from './supabase';
 import { normalizeProfileRow } from './profiles';
 import { fetchVotesForReviews, VOTE_TYPE } from './votes';
@@ -10,8 +9,7 @@ export const FEED_TYPE = {
   TRENDING: 'trending',
 };
 
-const FEED_CACHE_DB_NAME = 'gamestar_feed_cache.db';
-const FALLBACK_FEED_CACHE_KEY = 'gamestar:feed_cache';
+const FEED_CACHE_STORAGE_KEY = 'gamestar:feed_cache';
 
 const ENTRY_FIELDS = `
   id, user_id, game_id, status, rating, review, playtime, platform, created_at, updated_at,
@@ -19,87 +17,35 @@ const ENTRY_FIELDS = `
   profile:profiles (id, username, display_name, avatar_url)
 `;
 
-let feedCacheDbInstance = null;
-
-function getFeedCacheDatabase() {
-  if (feedCacheDbInstance) return feedCacheDbInstance;
-
-  try {
-    const db = SQLite.openDatabaseSync(FEED_CACHE_DB_NAME);
-    db.execSync(`
-      CREATE TABLE IF NOT EXISTS feed_cache (
-        cache_key TEXT PRIMARY KEY NOT NULL,
-        entries_json TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-    `);
-    feedCacheDbInstance = db;
-    return feedCacheDbInstance;
-  } catch {
-    return null;
-  }
-}
-
 function buildFeedCacheKey(feedType, userId) {
   const scope = feedType === FEED_TYPE.FOLLOWING ? String(userId || 'anonymous') : 'global';
   return `${feedType}:${scope}`;
 }
 
+// The last loaded feed page is kept in localStorage (backed by expo-sqlite)
+// so the feed can still be shown while offline
+function readFeedCache() {
+  try {
+    const raw = globalThis.localStorage?.getItem(FEED_CACHE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function saveCachedFeedEntries(feedType, userId, entries) {
   if (!Array.isArray(entries)) return;
 
-  const cacheKey = buildFeedCacheKey(feedType, userId);
-  const serializedEntries = JSON.stringify(entries);
-  const timestamp = Date.now();
-  const db = getFeedCacheDatabase();
-
-  if (db) {
-    db.runSync(
-      `INSERT OR REPLACE INTO feed_cache (cache_key, entries_json, updated_at)
-       VALUES (?, ?, ?)`,
-      [cacheKey, serializedEntries, timestamp]
-    );
-    return;
-  }
-
+  const cacheMap = readFeedCache();
+  cacheMap[buildFeedCacheKey(feedType, userId)] = entries;
   try {
-    const rawMap = globalThis.localStorage?.getItem(FALLBACK_FEED_CACHE_KEY);
-    const cacheMap = rawMap ? JSON.parse(rawMap) : {};
-    cacheMap[cacheKey] = {
-      entries,
-      updatedAt: timestamp,
-    };
-    globalThis.localStorage?.setItem(FALLBACK_FEED_CACHE_KEY, JSON.stringify(cacheMap));
+    globalThis.localStorage?.setItem(FEED_CACHE_STORAGE_KEY, JSON.stringify(cacheMap));
   } catch {}
 }
 
 export function getCachedFeedEntries(feedType, userId) {
-  const cacheKey = buildFeedCacheKey(feedType, userId);
-  const db = getFeedCacheDatabase();
-
-  if (db) {
-    const row = db.getFirstSync(
-      `SELECT entries_json FROM feed_cache WHERE cache_key = ?`,
-      [cacheKey]
-    );
-    if (!row?.entries_json) return null;
-    try {
-      const parsed = JSON.parse(row.entries_json);
-      return Array.isArray(parsed) ? parsed : null;
-    } catch {
-      return null;
-    }
-  }
-
-  try {
-    const rawMap = globalThis.localStorage?.getItem(FALLBACK_FEED_CACHE_KEY);
-    if (!rawMap) return null;
-    const cacheMap = JSON.parse(rawMap);
-    const cached = cacheMap?.[cacheKey]?.entries;
-    return Array.isArray(cached) ? cached : null;
-  } catch {
-    return null;
-  }
+  const cached = readFeedCache()[buildFeedCacheKey(feedType, userId)];
+  return Array.isArray(cached) ? cached : null;
 }
 
 function parseNumericRating(rating) {
@@ -290,9 +236,4 @@ export async function saveLibraryEntry({ id, game_id, status, rating, review, pl
 export async function deleteLibraryEntry(entryId) {
   const { error } = await supabase.from('user_games').delete().eq('id', entryId);
   if (error) throw error;
-}
-
-export async function getActivityFeed(userId) {
-  const result = await fetchFollowingFeed(userId, { page: 0, pageSize: 50 });
-  return result.entries;
 }

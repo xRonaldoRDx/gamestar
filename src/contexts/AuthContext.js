@@ -14,15 +14,7 @@ const AuthContext = createContext(null);
 function formatAuthProfile(rawProfile) {
   if (!rawProfile) return null;
   const normalized = normalizeProfileRow(rawProfile);
-  const cacheBustedAvatar = buildCacheBustedAvatarUrl(
-    normalized.avatarUrl ?? normalized.avatar_url,
-    Date.now()
-  );
-  return {
-    ...normalized,
-    avatarUrl: cacheBustedAvatar,
-    avatar_url: cacheBustedAvatar,
-  };
+  return { ...normalized, avatar_url: buildCacheBustedAvatarUrl(normalized.avatar_url) };
 }
 
 export function AuthProvider({ children }) {

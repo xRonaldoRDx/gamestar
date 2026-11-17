@@ -1,8 +1,7 @@
 -- =============================================================
 -- GAMESTAR - Supabase schema
 -- Paste this whole file into the Supabase SQL Editor and run it.
--- Safe to run more than once: it only creates what is missing and
--- migrates data from earlier versions.
+-- Safe to run more than once: it only creates what is missing.
 -- =============================================================
 
 -- -------------------------------------------------------------
@@ -15,10 +14,9 @@ create table if not exists public.profiles (
   display_name text not null default '',
   bio text not null default '' check (char_length(bio) <= 160),
   avatar_url text,
+  is_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
-
-alter table public.profiles add column if not exists avatar_url text;
 
 -- Creates the profile automatically on sign up.
 -- username comes from options.data.username sent by the app.
@@ -46,8 +44,6 @@ create trigger on_auth_user_created
 
 -- Admins curate the catalog. Users cannot promote themselves: they may only
 -- update display_name, bio and avatar_url (column-level grant below).
-alter table public.profiles add column if not exists is_admin boolean not null default false;
-
 revoke update on public.profiles from anon, authenticated;
 grant update (display_name, bio, avatar_url) on public.profiles to authenticated;
 
@@ -117,24 +113,16 @@ create table if not exists public.games (
   genres text not null default '',
   developer text not null default '',
   platforms text not null default '',
-  source text not null,
+  source text not null check (source in ('igdb', 'steam', 'admin')),
   steam_appid int unique,
+  igdb_id bigint unique,
+  summary text not null default '',
+  -- Critics score from IGDB, already converted to the app's 0-5 scale
+  critic_rating numeric(2, 1),
   created_by uuid references public.profiles (id) on delete set null default auth.uid(),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
-
-alter table public.games add column if not exists igdb_id bigint unique;
-alter table public.games add column if not exists summary text not null default '';
--- Critics score from IGDB, already converted to the app's 0-5 scale
-alter table public.games add column if not exists critic_rating numeric(2, 1);
-alter table public.games add column if not exists updated_at timestamptz not null default now();
-
--- The old constraint only allowed 'steam' and 'user', so it must go before the update.
--- Games typed in by users in the first version become admin-curated.
-alter table public.games drop constraint if exists games_source_check;
-update public.games set source = 'admin' where source = 'user';
-alter table public.games add constraint games_source_check
-  check (source in ('igdb', 'steam', 'admin'));
 
 create index if not exists games_title_idx on public.games (lower(title));
 
@@ -145,8 +133,9 @@ create table if not exists public.user_games (
   id bigint generated always as identity primary key,
   user_id uuid not null references public.profiles (id) on delete cascade default auth.uid(),
   game_id bigint not null references public.games (id) on delete cascade,
-  status text not null,
-  rating numeric(2, 1),
+  status text not null check (status in ('playing', 'completed', 'dropped', 'paused', 'wishlist')),
+  -- Half-star steps from 0 to 5; null means "not rated"
+  rating numeric(2, 1) check (rating between 0 and 5 and rating * 2 = floor(rating * 2)),
   review text not null default '' check (char_length(review) <= 2000),
   playtime int check (playtime >= 0),
   platform text not null default '',
@@ -154,33 +143,6 @@ create table if not exists public.user_games (
   updated_at timestamptz not null default now(),
   unique (user_id, game_id)
 );
-
--- Migration from the first version: ratings were 0-10 and there was a 'backlog' status.
--- The numeric(3,1) column type marks the old version, so this runs only once.
-alter table public.user_games drop constraint if exists user_games_status_check;
-alter table public.user_games drop constraint if exists user_games_rating_check;
-
-do $$
-begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'user_games'
-      and column_name = 'rating' and numeric_precision = 3
-  ) then
-    update public.user_games set rating = round(rating) / 2.0 where rating is not null;
-    alter table public.user_games alter column rating type numeric(2, 1);
-  end if;
-end;
-$$;
-
-update public.user_games set status = 'wishlist' where status = 'backlog';
-
-alter table public.user_games add constraint user_games_status_check
-  check (status in ('playing', 'completed', 'dropped', 'paused', 'wishlist'));
-
--- Half-star steps from 0 to 5; null means "not rated"
-alter table public.user_games add constraint user_games_rating_check
-  check (rating between 0 and 5 and rating * 2 = floor(rating * 2));
 
 create index if not exists user_games_user_idx on public.user_games (user_id, updated_at desc);
 create index if not exists user_games_game_idx on public.user_games (game_id, updated_at desc);

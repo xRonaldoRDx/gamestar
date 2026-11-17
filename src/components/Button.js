@@ -31,6 +31,12 @@ export default function Button({
       fg: colors.primary,
       border: 'transparent',
     },
+    danger: {
+      bg: colors.danger + '18',
+      bgPressed: colors.danger + '33',
+      fg: colors.danger,
+      border: colors.danger,
+    },
   }[variant] || {
     bg: colors.primary,
     bgPressed: colors.primaryPressed,

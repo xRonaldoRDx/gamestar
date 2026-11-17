@@ -14,7 +14,7 @@ export default function Avatar({ profile, size = 44 }) {
   const { colors } = useTheme();
   const [hasImageError, setHasImageError] = useState(false);
 
-  const candidateUri = profile?.avatarUrl ?? profile?.avatar_url ?? null;
+  const candidateUri = profile?.avatar_url ?? null;
   const avatarUri = isValidAvatarUri(candidateUri) ? candidateUri.trim() : null;
   const shouldRenderImage = Boolean(avatarUri) && !hasImageError;
 
@@ -22,14 +22,7 @@ export default function Avatar({ profile, size = 44 }) {
     setHasImageError(false);
   }, [avatarUri]);
 
-  const displayName =
-    typeof profile?.displayName === 'string' && profile.displayName.trim()
-      ? profile.displayName.trim()
-      : typeof profile?.display_name === 'string' && profile.display_name.trim()
-      ? profile.display_name.trim()
-      : typeof profile?.username === 'string' && profile.username.trim()
-      ? profile.username.trim()
-      : '';
+  const displayName = profile?.display_name?.trim() || profile?.username?.trim() || '';
 
   const firstLetter = displayName ? displayName.charAt(0).toUpperCase() : '';
 

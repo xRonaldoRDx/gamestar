@@ -5,6 +5,7 @@ import AppText from '../components/AppText';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import GameCover from '../components/GameCover';
+import StatItem from '../components/StatItem';
 import { isValidRating } from '../components/RatingLabel';
 import { ErrorState, LoadingState } from '../components/ScreenState';
 import { useAuth } from '../contexts/AuthContext';
@@ -126,13 +127,15 @@ export default function GameDetailsScreen({ route, navigation }) {
           },
         ]}
       >
-        <StatItem label="Jogadores" value={reviews.length} />
-        <StatItem label="Zeraram" value={completedCount} />
+        <StatItem valueVariant="subtitle" label="Jogadores" value={reviews.length} />
+        <StatItem valueVariant="subtitle" label="Zeraram" value={completedCount} />
         <StatItem
+          valueVariant="subtitle"
           label="Comunidade"
           value={isValidRating(averageRating) ? `★ ${averageRating.toFixed(1)}` : '—'}
         />
         <StatItem
+          valueVariant="subtitle"
           label="Crítica"
           value={isValidRating(criticRating) ? `★ ${criticRating.toFixed(1)}` : '—'}
         />
@@ -186,19 +189,6 @@ export default function GameDetailsScreen({ route, navigation }) {
   );
 }
 
-function StatItem({ label, value }) {
-  return (
-    <View style={styles.statItem}>
-      <AppText variant="subtitle" tone="primary">
-        {value}
-      </AppText>
-      <AppText variant="caption" tone="muted">
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -210,10 +200,6 @@ const styles = StyleSheet.create({
   statsBar: {
     flexDirection: 'row',
     borderWidth: 1,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
   },
   sectionTitle: {
     fontWeight: '700',

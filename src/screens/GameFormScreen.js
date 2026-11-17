@@ -1,13 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import KeyboardAwareView from '../components/KeyboardAwareView';
+import TextField from '../components/TextField';
 import AppText from '../components/AppText';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
@@ -233,27 +227,13 @@ export default function GameFormScreen({ route, navigation }) {
               />
             </>
           ) : (
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  borderRadius: radius.md,
-                  color: colors.text,
-                  paddingHorizontal: spacing.md,
-                },
-              ]}
+            <TextField
               placeholder="Ex: PC, Switch"
-              placeholderTextColor={colors.textMuted}
               value={platform}
               onChangeText={setPlatform}
               maxLength={40}
               editable={!isSaving}
-              autoComplete="off"
-              autoCorrect={false}
-              textContentType="none"
-              importantForAutofill="no"
+              accessibilityLabel="Plataforma"
             />
           )}
         </View>
@@ -267,46 +247,21 @@ export default function GameFormScreen({ route, navigation }) {
 
         <View style={{ gap: spacing.xs }}>
           <AppText variant="subtitle">Horas jogadas</AppText>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                borderRadius: radius.md,
-                color: colors.text,
-                paddingHorizontal: spacing.md,
-              },
-            ]}
+          <TextField
             placeholder="Ex: 42"
-            placeholderTextColor={colors.textMuted}
             value={playtime}
             onChangeText={handlePlaytimeChange}
             keyboardType="numeric"
             maxLength={5}
             editable={!isSaving}
-            autoComplete="off"
-            autoCorrect={false}
-            textContentType="none"
-            importantForAutofill="no"
+            accessibilityLabel="Horas jogadas"
           />
         </View>
 
         <View style={{ gap: spacing.xs }}>
           <AppText variant="subtitle">Avaliação e Comentários</AppText>
-          <TextInput
-            style={[
-              styles.textArea,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                borderRadius: radius.md,
-                color: colors.text,
-                padding: spacing.md,
-              },
-            ]}
+          <TextField
             placeholder="Escreva seus pontos fortes, impressões sobre a campanha, jogabilidade e trilha sonora..."
-            placeholderTextColor={colors.textMuted}
             value={reviewText}
             onChangeText={setReviewText}
             onFocus={scrollToReviewInput}
@@ -314,13 +269,9 @@ export default function GameFormScreen({ route, navigation }) {
             multiline
             numberOfLines={5}
             maxLength={2000}
-            textAlignVertical="top"
             scrollEnabled={false}
             editable={!isSaving}
-            autoComplete="off"
-            autoCorrect={false}
-            textContentType="none"
-            importantForAutofill="no"
+            accessibilityLabel="Avaliação e comentários"
           />
         </View>
 
@@ -338,42 +289,12 @@ export default function GameFormScreen({ route, navigation }) {
           />
 
           {isEditing ? (
-            <View
-              style={[
-                styles.deleteButtonWrapper,
-                {
-                  borderRadius: radius.md,
-                  borderColor: colors.danger,
-                },
-              ]}
-            >
-              <Pressable
-                onPress={handleConfirmDelete}
-                disabled={isSaving}
-                hitSlop={8}
-                android_ripple={{ color: 'rgba(229, 72, 77, 0.25)' }}
-                accessibilityRole="button"
-                accessibilityLabel="Excluir Avaliação"
-                style={({ pressed }) => [
-                  styles.deleteButton,
-                  {
-                    paddingVertical: spacing.sm + 4,
-                    backgroundColor: pressed
-                      ? colors.danger + '33'
-                      : colors.danger + '18',
-                    opacity: isSaving ? 0.5 : 1,
-                  },
-                ]}
-              >
-                <AppText
-                  variant="body"
-                  tone="danger"
-                  style={styles.deleteButtonText}
-                >
-                  Excluir Avaliação
-                </AppText>
-              </Pressable>
-            </View>
+            <Button
+              label="Excluir Avaliação"
+              variant="danger"
+              onPress={handleConfirmDelete}
+              disabled={isSaving}
+            />
           ) : null}
         </View>
       </ScrollView>
@@ -405,30 +326,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 4,
   },
-  input: {
-    minHeight: 48,
-    borderWidth: 1,
-    fontSize: 14,
-  },
   boldText: {
-    fontWeight: '700',
-  },
-  textArea: {
-    minHeight: 120,
-    borderWidth: 1,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  deleteButtonWrapper: {
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  deleteButton: {
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteButtonText: {
     fontWeight: '700',
   },
 });

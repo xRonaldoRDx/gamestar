@@ -1,36 +1,14 @@
 import { supabase } from './supabase';
 
 const PROFILE_FIELDS = 'id, username, display_name, bio, avatar_url, is_admin, created_at';
-const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-export const STORAGE_BUCKET = 'avatars';
+const STORAGE_BUCKET = 'avatars';
 export const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
 
+// The image picker returns base64; Hermes' built-in atob turns it into the bytes Storage expects
 function decodeBase64ToArrayBuffer(base64String) {
   const sanitized = base64String.replace(/^data:[^;]+;base64,/, '').replace(/[^A-Za-z0-9+/=]/g, '');
-  const paddingLength = sanitized.endsWith('==') ? 2 : sanitized.endsWith('=') ? 1 : 0;
-  const byteLength = Math.floor((sanitized.length * 3) / 4) - paddingLength;
-  const bytes = new Uint8Array(byteLength);
-
-  let byteIndex = 0;
-  for (let i = 0; i < sanitized.length; i += 4) {
-    const encoded1 = BASE64_CHARS.indexOf(sanitized.charAt(i));
-    const encoded2 = BASE64_CHARS.indexOf(sanitized.charAt(i + 1));
-    const encoded3 = BASE64_CHARS.indexOf(sanitized.charAt(i + 2));
-    const encoded4 = BASE64_CHARS.indexOf(sanitized.charAt(i + 3));
-
-    const triplet =
-      (encoded1 << 18) |
-      (encoded2 << 12) |
-      ((encoded3 > -1 ? encoded3 : 0) << 6) |
-      (encoded4 > -1 ? encoded4 : 0);
-
-    if (byteIndex < byteLength) bytes[byteIndex++] = (triplet >> 16) & 0xff;
-    if (byteIndex < byteLength) bytes[byteIndex++] = (triplet >> 8) & 0xff;
-    if (byteIndex < byteLength) bytes[byteIndex++] = triplet & 0xff;
-  }
-
-  return bytes.buffer;
+  return Uint8Array.from(atob(sanitized), (char) => char.charCodeAt(0)).buffer;
 }
 
 function resolveFileExtension(uri = '', mimeType = '') {
@@ -72,21 +50,11 @@ function normalizeAvatarUrl(avatarUrl) {
 
 export function normalizeProfileRow(profile) {
   if (!profile) return profile;
-  const normalizedUrl = normalizeAvatarUrl(profile.avatar_url ?? profile.avatarUrl);
-  const displayName =
-    typeof profile.display_name === 'string'
-      ? profile.display_name
-      : typeof profile.displayName === 'string'
-      ? profile.displayName
-      : '';
-
   return {
     ...profile,
-    display_name: displayName,
-    displayName,
+    display_name: typeof profile.display_name === 'string' ? profile.display_name : '',
     bio: typeof profile.bio === 'string' ? profile.bio : '',
-    avatar_url: normalizedUrl,
-    avatarUrl: normalizedUrl,
+    avatar_url: normalizeAvatarUrl(profile.avatar_url),
   };
 }
 
@@ -166,7 +134,7 @@ export function getFollowerProfiles(userId) {
   });
 }
 
-export async function updateProfile(userId, { display_name, bio, avatar_url, avatarUrl }) {
+export async function updateProfile(userId, { display_name, bio, avatar_url }) {
   const updates = {};
 
   if (typeof display_name === 'string') {
@@ -175,10 +143,8 @@ export async function updateProfile(userId, { display_name, bio, avatar_url, ava
   if (typeof bio === 'string') {
     updates.bio = bio.trim();
   }
-
-  const resolvedAvatarInput = avatar_url !== undefined ? avatar_url : avatarUrl;
-  if (resolvedAvatarInput !== undefined) {
-    updates.avatar_url = normalizeAvatarUrl(resolvedAvatarInput);
+  if (avatar_url !== undefined) {
+    updates.avatar_url = normalizeAvatarUrl(avatar_url);
   }
 
   const { data, error } = await supabase
@@ -235,13 +201,8 @@ export async function uploadProfileAvatar(userId, imageAsset) {
     }
 
     const updatedProfile = await updateProfile(userId, { avatar_url: rawPublicUrl });
-    const cacheBustedUrl = buildCacheBustedAvatarUrl(rawPublicUrl, Date.now());
-
-    return {
-      ...updatedProfile,
-      avatar_url: cacheBustedUrl,
-      avatarUrl: cacheBustedUrl,
-    };
+    // The file path never changes, so a fresh query string forces the new photo to load
+    return { ...updatedProfile, avatar_url: buildCacheBustedAvatarUrl(rawPublicUrl) };
   } catch {
     throw new Error('Não foi possível enviar a imagem. Tente novamente.');
   }

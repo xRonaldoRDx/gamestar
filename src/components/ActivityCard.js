@@ -55,8 +55,7 @@ function ActivityCard({ entry, onPressProfile, onPressGame, showGame = true }) {
     : entry.profile;
 
   const status = GAME_STATUS[entry.status] || GAME_STATUS.wishlist;
-  const authorName =
-    authorProfile?.displayName || authorProfile?.display_name || authorProfile?.username;
+  const authorName = authorProfile?.display_name || authorProfile?.username;
   const reviewText = (entry.review || '').trim();
   const hasReview = Boolean(reviewText);
 
@@ -296,8 +295,8 @@ function areActivityCardPropsEqual(previousProps, nextProps) {
     prevEntry.playtime === nextEntry.playtime &&
     prevEntry.voteScore === nextEntry.voteScore &&
     prevEntry.userVote === nextEntry.userVote &&
-    prevEntry.profile?.avatarUrl === nextEntry.profile?.avatarUrl &&
-    prevEntry.profile?.displayName === nextEntry.profile?.displayName
+    prevEntry.profile?.avatar_url === nextEntry.profile?.avatar_url &&
+    prevEntry.profile?.display_name === nextEntry.profile?.display_name
   );
 }
 

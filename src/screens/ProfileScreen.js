@@ -8,16 +8,17 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import AppText from '../components/AppText';
 import Avatar from '../components/Avatar';
 import Button from '../components/Button';
 import EmptyState from '../components/EmptyState';
 import GameListItem from '../components/GameListItem';
+import StatItem from '../components/StatItem';
 import StatusFilter from '../components/StatusFilter';
 import { ErrorState, LoadingState } from '../components/ScreenState';
 import { useAuth } from '../contexts/AuthContext';
+import { useAvatarUpload } from '../hooks/useAvatarUpload';
 import { useFocusLoader } from '../hooks/useFocusLoader';
 import { getUserLibrary } from '../services/library';
 import {
@@ -27,36 +28,21 @@ import {
   getProfileStats,
   isFollowing,
   unfollowUser,
-  uploadProfileAvatar,
 } from '../services/profiles';
-import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 import { PEOPLE_TAB } from './PeopleScreen';
 
-const UPLOAD_ERROR_MESSAGE = 'Não foi possível enviar a imagem. Tente novamente.';
 const DEFAULT_STATS = { total: 0, completed: 0, followers: 0, following: 0 };
 
-function mapProfileToViewModel(rawProfile = {}) {
-  const resolvedUri = buildCacheBustedAvatarUrl(rawProfile?.avatarUrl ?? rawProfile?.avatar_url);
-  return {
-    ...rawProfile,
-    displayName: rawProfile?.displayName ?? rawProfile?.display_name ?? '',
-    display_name: rawProfile?.display_name ?? rawProfile?.displayName ?? '',
-    avatarUrl: resolvedUri,
-    avatar_url: resolvedUri,
-  };
-}
-
 export default function ProfileScreen({ route, navigation }) {
-  const { userId: currentUserId, signOut, reloadProfile, updateAuthProfile } = useAuth();
+  const { userId: currentUserId, signOut } = useAuth();
   const { colors, spacing, radius } = useTheme();
   const userId = route?.params?.userId ?? currentUserId;
   const isOwnProfile = userId === currentUserId;
 
   const [statusFilter, setStatusFilter] = useState(null);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [avatarError, setAvatarError] = useState('');
+  const { isUploadingAvatar, avatarError, pickAndUploadAvatar } = useAvatarUpload();
 
   const { data, setData, isLoading, isRefreshing, error, refresh } = useFocusLoader(async () => {
     if (!userId) return null;
@@ -69,7 +55,7 @@ export default function ProfileScreen({ route, navigation }) {
     ]);
 
     return {
-      profile: mapProfileToViewModel(profile),
+      profile: { ...profile, avatar_url: buildCacheBustedAvatarUrl(profile?.avatar_url) },
       stats: stats ?? DEFAULT_STATS,
       library: Array.isArray(library) ? library : [],
       following: Boolean(following),
@@ -84,59 +70,9 @@ export default function ProfileScreen({ route, navigation }) {
 
   async function handleSelectAvatar() {
     if (!isOwnProfile || isUploadingAvatar) return;
-    setAvatarError('');
-
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        const permissionMessage = 'Permita o acesso à galeria para alterar sua foto.';
-        setAvatarError(permissionMessage);
-        Alert.alert('Permissão necessária', permissionMessage);
-        return;
-      }
-
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (pickerResult.canceled || !pickerResult.assets?.length) {
-        return;
-      }
-
-      setIsUploadingAvatar(true);
-      const updatedProfile = await uploadProfileAvatar(currentUserId, pickerResult.assets[0]);
-      const uri = buildCacheBustedAvatarUrl(
-        updatedProfile.avatarUrl ?? updatedProfile.avatar_url,
-        Date.now()
-      );
-
-      const nextProfile = {
-        ...(data?.profile ?? {}),
-        ...updatedProfile,
-        avatarUrl: uri,
-        avatar_url: uri,
-      };
-
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              profile: nextProfile,
-            }
-          : prev
-      );
-      updateAuthProfile(nextProfile);
-      await reloadProfile();
-    } catch (err) {
-      const friendlyMessage = toFriendlyMessage(err, UPLOAD_ERROR_MESSAGE);
-      setAvatarError(friendlyMessage);
-      Alert.alert('Erro no upload', friendlyMessage);
-    } finally {
-      setIsUploadingAvatar(false);
+    const updatedProfile = await pickAndUploadAvatar();
+    if (updatedProfile) {
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, ...updatedProfile } } : prev));
     }
   }
 
@@ -235,7 +171,7 @@ export default function ProfileScreen({ route, navigation }) {
 
         <View style={styles.flex}>
           <AppText variant="title">
-            {userProfile.displayName || userProfile.display_name || userProfile.username}
+            {userProfile.display_name || userProfile.username}
           </AppText>
           <AppText variant="body" tone="muted">
             @{userProfile.username}
@@ -336,44 +272,6 @@ export default function ProfileScreen({ route, navigation }) {
   );
 }
 
-// Without onPress the count is display-only; with it, a chevron hints that it opens a list
-function StatItem({ label, value, onPress }) {
-  const { colors, radius } = useTheme();
-
-  const content = (
-    <>
-      <AppText variant="title" tone="primary">
-        {value}
-      </AppText>
-      <View style={styles.statLabelRow}>
-        <AppText variant="caption" tone="muted">
-          {label}
-        </AppText>
-        {onPress ? <Ionicons name="chevron-forward" size={12} color={colors.textMuted} /> : null}
-      </View>
-    </>
-  );
-
-  if (!onPress) {
-    return <View style={styles.statItem}>{content}</View>;
-  }
-
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={4}
-      accessibilityRole="button"
-      accessibilityLabel={`Ver ${label.toLowerCase()}: ${value}`}
-      style={({ pressed }) => [
-        styles.statItem,
-        { borderRadius: radius.sm, backgroundColor: pressed ? colors.cardPressed : 'transparent' },
-      ]}
-    >
-      {content}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -398,15 +296,6 @@ const styles = StyleSheet.create({
   statsBar: {
     flexDirection: 'row',
     borderWidth: 1,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
   },
   statsDivider: {
     width: 1,

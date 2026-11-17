@@ -8,105 +8,52 @@ import {
   View,
 } from 'react-native';
 import KeyboardAwareView from '../components/KeyboardAwareView';
-import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import AppText from '../components/AppText';
 import Avatar from '../components/Avatar';
 import Button from '../components/Button';
 import TextField from '../components/TextField';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  buildCacheBustedAvatarUrl,
-  removeProfileAvatar,
-  updateProfile,
-  uploadProfileAvatar,
-} from '../services/profiles';
+import { useAvatarUpload } from '../hooks/useAvatarUpload';
+import { buildCacheBustedAvatarUrl, removeProfileAvatar, updateProfile } from '../services/profiles';
 import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
 
 const MAX_BIO_LENGTH = 160;
-const UPLOAD_ERROR_MESSAGE = 'Não foi possível enviar a imagem. Tente novamente.';
 const REMOVE_ERROR_MESSAGE = 'Não foi possível remover a foto. Tente novamente.';
-
-function mapProfileToViewModel(rawProfile = {}) {
-  const resolvedUri = buildCacheBustedAvatarUrl(rawProfile.avatarUrl ?? rawProfile.avatar_url);
-  return {
-    ...rawProfile,
-    displayName: rawProfile.displayName ?? rawProfile.display_name ?? '',
-    display_name: rawProfile.display_name ?? rawProfile.displayName ?? '',
-    avatarUrl: resolvedUri,
-    avatar_url: resolvedUri,
-  };
-}
 
 export default function EditProfileScreen({ route, navigation }) {
   const { userId, reloadProfile, updateAuthProfile } = useAuth();
   const { colors, spacing, radius } = useTheme();
   const initialProfile = route?.params?.profile ?? {};
 
-  const [userProfile, setUserProfile] = useState(() => mapProfileToViewModel(initialProfile));
-  const [displayName, setDisplayName] = useState(
-    initialProfile.displayName ?? initialProfile.display_name ?? ''
-  );
+  const [userProfile, setUserProfile] = useState(() => ({
+    ...initialProfile,
+    avatar_url: buildCacheBustedAvatarUrl(initialProfile.avatar_url),
+  }));
+  const [displayName, setDisplayName] = useState(initialProfile.display_name ?? '');
   const [bio, setBio] = useState(initialProfile.bio || '');
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const { isUploadingAvatar, avatarError, pickAndUploadAvatar } = useAvatarUpload();
   const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
   const isBusy = isSaving || isUploadingAvatar || isRemovingAvatar;
-  const hasAvatar = Boolean(userProfile.avatarUrl);
+  const hasAvatar = Boolean(userProfile.avatar_url);
+
+  // Applies a profile returned by the server here and in the signed-in user's context
+  async function applyProfileUpdate(updatedProfile) {
+    const nextProfile = { ...userProfile, ...updatedProfile };
+    setUserProfile(nextProfile);
+    updateAuthProfile(nextProfile);
+    await reloadProfile();
+  }
 
   async function handleSelectAvatar() {
     if (isBusy) return;
     setFormError('');
-
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        const permissionMessage = 'Permita o acesso à galeria para escolher uma foto de perfil.';
-        setFormError(permissionMessage);
-        Alert.alert('Permissão necessária', permissionMessage);
-        return;
-      }
-
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (pickerResult.canceled || !pickerResult.assets?.length) {
-        return;
-      }
-
-      setIsUploadingAvatar(true);
-      const selectedAsset = pickerResult.assets[0];
-      const updatedProfile = await uploadProfileAvatar(userId, selectedAsset);
-      const uri = buildCacheBustedAvatarUrl(
-        updatedProfile.avatarUrl ?? updatedProfile.avatar_url,
-        Date.now()
-      );
-
-      const nextProfile = {
-        ...userProfile,
-        ...updatedProfile,
-        avatarUrl: uri,
-        avatar_url: uri,
-      };
-
-      setUserProfile(nextProfile);
-      updateAuthProfile(nextProfile);
-      await reloadProfile();
-    } catch (err) {
-      const friendlyMessage = toFriendlyMessage(err, UPLOAD_ERROR_MESSAGE);
-      setFormError(friendlyMessage);
-      Alert.alert('Erro no upload', friendlyMessage);
-    } finally {
-      setIsUploadingAvatar(false);
-    }
+    const updatedProfile = await pickAndUploadAvatar();
+    if (updatedProfile) setUserProfile((current) => ({ ...current, ...updatedProfile }));
   }
 
   async function handleRemoveAvatar() {
@@ -115,16 +62,7 @@ export default function EditProfileScreen({ route, navigation }) {
     setIsRemovingAvatar(true);
 
     try {
-      const updatedProfile = await removeProfileAvatar(userId);
-      const nextProfile = {
-        ...userProfile,
-        ...updatedProfile,
-        avatarUrl: null,
-        avatar_url: null,
-      };
-      setUserProfile(nextProfile);
-      updateAuthProfile(nextProfile);
-      await reloadProfile();
+      await applyProfileUpdate(await removeProfileAvatar(userId));
     } catch (err) {
       const friendlyMessage = toFriendlyMessage(err, REMOVE_ERROR_MESSAGE);
       setFormError(friendlyMessage);
@@ -143,22 +81,12 @@ export default function EditProfileScreen({ route, navigation }) {
       const savedProfile = await updateProfile(userId, {
         display_name: displayName,
         bio,
-        avatar_url: userProfile.avatarUrl,
+        avatar_url: userProfile.avatar_url,
       });
-      const uri = savedProfile.avatar_url
-        ? buildCacheBustedAvatarUrl(savedProfile.avatar_url, Date.now())
-        : null;
-
-      const nextProfile = {
-        ...userProfile,
+      await applyProfileUpdate({
         ...savedProfile,
-        avatarUrl: uri,
-        avatar_url: uri,
-      };
-
-      setUserProfile(nextProfile);
-      updateAuthProfile(nextProfile);
-      await reloadProfile();
+        avatar_url: buildCacheBustedAvatarUrl(savedProfile.avatar_url),
+      });
       navigation.goBack();
     } catch (err) {
       setFormError(toFriendlyMessage(err, 'Não foi possível salvar o perfil.'));
@@ -166,11 +94,8 @@ export default function EditProfileScreen({ route, navigation }) {
     }
   }
 
-  const previewProfile = {
-    ...userProfile,
-    displayName,
-    display_name: displayName,
-  };
+  const previewProfile = { ...userProfile, display_name: displayName };
+  const visibleError = formError || avatarError;
 
   return (
     <KeyboardAwareView
@@ -268,9 +193,9 @@ export default function EditProfileScreen({ route, navigation }) {
           textContentType="none"
         />
 
-        {formError ? (
+        {visibleError ? (
           <AppText variant="body" tone="danger" accessibilityLiveRegion="polite">
-            {formError}
+            {visibleError}
           </AppText>
         ) : null}
 
