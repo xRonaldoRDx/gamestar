@@ -2,7 +2,6 @@ import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   View,
@@ -11,6 +10,7 @@ import ActivityCard from '../components/ActivityCard';
 import AppText from '../components/AppText';
 import EmptyState from '../components/EmptyState';
 import { ErrorState, LoadingState } from '../components/ScreenState';
+import SegmentedTabs from '../components/SegmentedTabs';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeedViewModel } from '../hooks/useFeedViewModel';
 import { FEED_TYPE } from '../services/library';
@@ -79,47 +79,12 @@ export default function FeedScreen({ navigation }) {
   const toggleHeader = useMemo(
     () => (
       <View style={{ marginBottom: spacing.md, gap: spacing.xs }}>
-        <View
-          style={[
-            styles.tabBar,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              borderRadius: radius.md,
-              padding: spacing.xs,
-            },
-          ]}
-        >
-          {FEED_TABS.map((tab) => {
-            const isSelected = activeTab === tab.key;
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => handleSelectTab(tab.key)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isSelected }}
-                accessibilityLabel={`Alternar para feed ${tab.label}`}
-                style={({ pressed }) => [
-                  styles.tabButton,
-                  {
-                    backgroundColor: isSelected ? colors.primary : 'transparent',
-                    borderRadius: radius.sm,
-                    paddingVertical: spacing.sm,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <AppText
-                  variant="subtitle"
-                  tone={isSelected ? 'inverse' : 'muted'}
-                  style={styles.tabLabel}
-                >
-                  {tab.label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SegmentedTabs
+          tabs={FEED_TABS}
+          activeTab={activeTab}
+          onSelectTab={handleSelectTab}
+          accessibilityPrefix="Alternar para feed "
+        />
 
         {isOfflineFallback ? (
           <View
@@ -231,19 +196,6 @@ export default function FeedScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    gap: 6,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabLabel: {
-    fontWeight: '700',
   },
   offlineBanner: {
     borderWidth: 1,

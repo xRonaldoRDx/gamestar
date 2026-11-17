@@ -128,6 +128,44 @@ export async function searchProfiles(searchQuery) {
   return (data ?? []).map(normalizeProfileRow);
 }
 
+// Keeps the People tab responsive even for very popular profiles
+const FOLLOW_LIST_LIMIT = 200;
+
+// `follows` points to profiles twice, so the embed names which foreign key to follow
+async function getFollowProfiles({ filterColumn, profileForeignKey, userId }) {
+  const { data, error } = await supabase
+    .from('follows')
+    .select(`created_at, profile:profiles!${profileForeignKey} (${PROFILE_FIELDS})`)
+    .eq(filterColumn, userId)
+    .order('created_at', { ascending: false })
+    .limit(FOLLOW_LIST_LIMIT);
+
+  if (error) throw error;
+  return (data ?? []).map((row) => normalizeProfileRow(row.profile)).filter(Boolean);
+}
+
+/**
+ * People the user follows, most recently followed first.
+ */
+export function getFollowingProfiles(userId) {
+  return getFollowProfiles({
+    filterColumn: 'follower_id',
+    profileForeignKey: 'follows_following_id_fkey',
+    userId,
+  });
+}
+
+/**
+ * People who follow the user, most recent followers first.
+ */
+export function getFollowerProfiles(userId) {
+  return getFollowProfiles({
+    filterColumn: 'following_id',
+    profileForeignKey: 'follows_follower_id_fkey',
+    userId,
+  });
+}
+
 export async function updateProfile(userId, { display_name, bio, avatar_url, avatarUrl }) {
   const updates = {};
 
