@@ -31,6 +31,7 @@ import {
 } from '../services/profiles';
 import { toFriendlyMessage } from '../services/supabase';
 import { useTheme } from '../theme/ThemeProvider';
+import { PEOPLE_TAB } from './PeopleScreen';
 
 const UPLOAD_ERROR_MESSAGE = 'Não foi possível enviar a imagem. Tente novamente.';
 const DEFAULT_STATS = { total: 0, completed: 0, followers: 0, following: 0 };
@@ -173,6 +174,14 @@ export default function ProfileScreen({ route, navigation }) {
     ]);
   }
 
+  // Reuses the People tab; requestedAt makes it switch lists even if the same one was asked before
+  function openPeopleList(tab) {
+    navigation.navigate('MainTabs', {
+      screen: 'PeopleTab',
+      params: { initialTab: tab, requestedAt: Date.now() },
+    });
+  }
+
   if (error && !data) {
     return <ErrorState message={error} onRetry={refresh} />;
   }
@@ -255,8 +264,18 @@ export default function ProfileScreen({ route, navigation }) {
       >
         <StatItem label="Jogos" value={stats.total} />
         <StatItem label="Zerados" value={stats.completed} />
-        <StatItem label="Seguidores" value={stats.followers} />
-        <StatItem label="Seguindo" value={stats.following} />
+        {/* Separates display-only counts from the follow counts, which open lists */}
+        <View style={[styles.statsDivider, { backgroundColor: colors.border, marginVertical: spacing.xs }]} />
+        <StatItem
+          label="Seguindo"
+          value={stats.following}
+          onPress={isOwnProfile ? () => openPeopleList(PEOPLE_TAB.FOLLOWING) : undefined}
+        />
+        <StatItem
+          label="Seguidores"
+          value={stats.followers}
+          onPress={isOwnProfile ? () => openPeopleList(PEOPLE_TAB.FOLLOWERS) : undefined}
+        />
       </View>
 
       {isOwnProfile && userProfile.is_admin ? (
@@ -317,16 +336,41 @@ export default function ProfileScreen({ route, navigation }) {
   );
 }
 
-function StatItem({ label, value }) {
-  return (
-    <View style={styles.statItem}>
+// Without onPress the count is display-only; with it, a chevron hints that it opens a list
+function StatItem({ label, value, onPress }) {
+  const { colors, radius } = useTheme();
+
+  const content = (
+    <>
       <AppText variant="title" tone="primary">
         {value}
       </AppText>
-      <AppText variant="caption" tone="muted">
-        {label}
-      </AppText>
-    </View>
+      <View style={styles.statLabelRow}>
+        <AppText variant="caption" tone="muted">
+          {label}
+        </AppText>
+        {onPress ? <Ionicons name="chevron-forward" size={12} color={colors.textMuted} /> : null}
+      </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={styles.statItem}>{content}</View>;
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={4}
+      accessibilityRole="button"
+      accessibilityLabel={`Ver ${label.toLowerCase()}: ${value}`}
+      style={({ pressed }) => [
+        styles.statItem,
+        { borderRadius: radius.sm, backgroundColor: pressed ? colors.cardPressed : 'transparent' },
+      ]}
+    >
+      {content}
+    </Pressable>
   );
 }
 
@@ -358,5 +402,14 @@ const styles = StyleSheet.create({
   statItem: {
     flex: 1,
     alignItems: 'center',
+  },
+  statLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  statsDivider: {
+    width: 1,
+    alignSelf: 'stretch',
   },
 });

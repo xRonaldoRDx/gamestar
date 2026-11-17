@@ -22,7 +22,7 @@ import { useTheme } from '../theme/ThemeProvider';
 
 const SEARCH_DEBOUNCE_MS = 350;
 
-const PEOPLE_TAB = {
+export const PEOPLE_TAB = {
   FOLLOWING: 'following',
   FOLLOWERS: 'followers',
 };
@@ -117,12 +117,22 @@ function useProfileSearch(searchQuery, userId) {
   return { results, isSearching, searchError };
 }
 
-export default function PeopleScreen({ navigation }) {
+export default function PeopleScreen({ route, navigation }) {
   const { userId } = useAuth();
   const { colors, spacing } = useTheme();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState(PEOPLE_TAB.FOLLOWING);
+
+  // The own profile opens this tab on a specific list (followers or following)
+  const requestedTab = route?.params?.initialTab;
+  const requestedAt = route?.params?.requestedAt;
+  useEffect(() => {
+    if (requestedTab && Object.values(PEOPLE_TAB).includes(requestedTab)) {
+      setActiveTab(requestedTab);
+      setSearchQuery('');
+    }
+  }, [requestedTab, requestedAt]);
 
   useFocusEffect(
     useCallback(() => {
